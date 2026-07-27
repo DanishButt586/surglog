@@ -7,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { SurgicalCase, INITIAL_CATEGORIES } from "@/lib/mock-data";
-import { Save, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Save, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export function CaseForm({ initialData, isEdit = false }: { initialData?: Partial<SurgicalCase>; isEdit?: boolean }) {
   const router = useRouter();
   const [successMsg, setSuccessMsg] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split("T")[0]);
   const [procedureName, setProcedureName] = useState(initialData?.procedureName || "");
@@ -25,12 +28,54 @@ export function CaseForm({ initialData, isEdit = false }: { initialData?: Partia
   const [patientGender, setPatientGender] = useState<"Male" | "Female" | "Other">(initialData?.patientGender || "Female");
   const [notes, setNotes] = useState(initialData?.notes || "");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccessMsg(true);
-    setTimeout(() => {
-      router.push("/cases");
-    }, 1200);
+    setLoading(true);
+    setErrorMsg(null);
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      setErrorMsg("You must be logged in to save a case.");
+      setLoading(false);
+      return;
+    }
+
+    const payload = {
+      user_id: user.id,
+      date,
+      procedure_name: procedureName,
+      category,
+      role,
+      supervisor_name: supervisorName,
+      hospital_ward: hospitalWard,
+      complexity,
+      patient_age: patientAge === "" ? null : Number(patientAge),
+      patient_gender: patientGender,
+      notes,
+    };
+
+    let error = null;
+
+    if (isEdit && initialData?.id) {
+      const res = await supabase.from("cases").update(payload).eq("id", initialData.id);
+      error = res.error;
+    } else {
+      const res = await supabase.from("cases").insert(payload);
+      error = res.error;
+    }
+
+    if (error) {
+      setErrorMsg(error.message);
+      setLoading(false);
+    } else {
+      setSuccessMsg(true);
+      setTimeout(() => {
+        router.push("/cases");
+        router.refresh();
+      }, 1000);
+    }
   };
 
   return (
@@ -55,6 +100,13 @@ export function CaseForm({ initialData, isEdit = false }: { initialData?: Partia
         </CardHeader>
 
         <CardContent>
+          {errorMsg && (
+            <div className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+              <p className="text-sm font-medium">{errorMsg}</p>
+            </div>
+          )}
+
           {successMsg && (
             <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
               <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -198,9 +250,17 @@ export function CaseForm({ initialData, isEdit = false }: { initialData?: Partia
                   Cancel
                 </Button>
               </Link>
-              <Button type="submit" variant="primary" className="shadow-sm gap-1.5">
-                <Save className="h-4 w-4" />
-                {isEdit ? "Save Changes" : "Log Case Entry"}
+              <Button type="submit" variant="primary" disabled={loading} className="shadow-sm gap-1.5">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    {isEdit ? "Save Changes" : "Log Case Entry"}
+                  </>
+                )}
               </Button>
             </div>
           </form>

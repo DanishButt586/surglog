@@ -1,19 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { INITIAL_CATEGORIES, CategoryTarget } from "@/lib/mock-data";
-import { Save, RotateCcw, CheckCircle2, Target, Plus, Trash2 } from "lucide-react";
+import { Save, RotateCcw, CheckCircle2, Target, Plus, Trash2, Loader2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function TargetSettingsPage() {
-  const [categories, setCategories] = useState<CategoryTarget[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<CategoryTarget[]>([]);
+  const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryTarget, setNewCategoryTarget] = useState<number | "">(10);
+
+  const fetchTargets = async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: casesData } = await supabase.from("cases").select("category").eq("user_id", user.id);
+      const { data: targetsData } = await supabase.from("targets").select("*").eq("user_id", user.id);
+
+      if (targetsData && targetsData.length > 0) {
+        const mapped: CategoryTarget[] = targetsData.map((t: any) => ({
+          id: t.id,
+          name: t.category,
+          requiredCount: t.required_count,
+          currentCount: casesData?.filter((c: any) => c.category === t.category).length || 0,
+        }));
+        setCategories(mapped);
+      } else {
+        setCategories(INITIAL_CATEGORIES);
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchTargets();
+  }, []);
 
   const handleTargetChange = (id: string, newTarget: number) => {
     setCategories((prev) =>
@@ -21,12 +51,24 @@ export default function TargetSettingsPage() {
     );
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-    }, 3000);
+    setLoading(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      const upsertPayload = categories.map((cat) => ({
+        user_id: user.id,
+        category: cat.name,
+        required_count: cat.requiredCount,
+      }));
+
+      await supabase.from("targets").upsert(upsertPayload, { onConflict: "user_id,category" });
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    }
+    setLoading(false);
   };
 
   const handleResetDefaults = () => {
@@ -46,13 +88,17 @@ export default function TargetSettingsPage() {
     setNewCategoryTarget(10);
   };
 
-  const handleDeleteCategory = (id: string) => {
+  const handleDeleteCategory = async (id: string) => {
+    const targetToDelete = categories.find((c) => c.id === id);
     setCategories(categories.filter((c) => c.id !== id));
+    if (targetToDelete && !id.startsWith("cat-")) {
+      const supabase = createClient();
+      await supabase.from("targets").delete().eq("id", id);
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
@@ -60,7 +106,7 @@ export default function TargetSettingsPage() {
             Target Settings & Requirements
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Configure required procedure counts for ACGME / Royal College of Surgeons audit targets.
+            Configure required procedure counts for ACGME / Royal College of Surgeons audit targets in Supabase.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleResetDefaults} className="gap-1.5">
@@ -73,13 +119,12 @@ export default function TargetSettingsPage() {
         <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
           <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
           <div>
-            <p className="font-semibold text-sm">Target requirements saved!</p>
+            <p className="font-semibold text-sm">Target requirements saved to Supabase!</p>
             <p className="text-xs">Your dashboard case progress bars have been updated accordingly.</p>
           </div>
         </div>
       )}
 
-      {/* Target Settings List Form */}
       <form onSubmit={handleSave} className="space-y-6">
         <Card>
           <CardHeader>
@@ -89,70 +134,76 @@ export default function TargetSettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {categories.map((cat) => {
-              const isCompleted = cat.currentCount >= cat.requiredCount;
-              const pct = Math.min(Math.round((cat.currentCount / cat.requiredCount) * 100), 100);
+            {loading ? (
+              <div className="p-8 text-center text-slate-500 flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-teal-600 dark:text-teal-400" />
+                <span>Loading targets...</span>
+              </div>
+            ) : (
+              categories.map((cat) => {
+                const isCompleted = cat.currentCount >= cat.requiredCount;
+                const pct = Math.min(Math.round((cat.currentCount / cat.requiredCount) * 100), 100);
 
-              return (
-                <div
-                  key={cat.id}
-                  className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="flex-1 space-y-1.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-base text-slate-900 dark:text-white truncate">
-                        {cat.name}
-                      </span>
-                      {isCompleted ? (
-                        <Badge variant="success" className="text-[10px]">
-                          Target Met
-                        </Badge>
-                      ) : (
-                        <Badge variant="warning" className="text-[10px]">
-                          In Progress
-                        </Badge>
-                      )}
+                return (
+                  <div
+                    key={cat.id}
+                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-base text-slate-900 dark:text-white truncate">
+                          {cat.name}
+                        </span>
+                        {isCompleted ? (
+                          <Badge variant="success" className="text-[10px]">
+                            Target Met
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning" className="text-[10px]">
+                            In Progress
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-slate-500">
+                        <span>Logged: {cat.currentCount} cases</span>
+                        <span>•</span>
+                        <span>Progress: {pct}%</span>
+                      </div>
+
+                      <Progress value={cat.currentCount} max={cat.requiredCount} className="mt-2" />
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span>Logged: {cat.currentCount} cases</span>
-                      <span>•</span>
-                      <span>Progress: {pct}%</span>
+                    <div className="flex items-center gap-3 self-end sm:self-center">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          Required Target:
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={cat.requiredCount}
+                          onChange={(e) => handleTargetChange(cat.id, Number(e.target.value))}
+                          className="w-24 h-9 text-center font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                        aria-label="Remove category"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-
-                    <Progress value={cat.currentCount} max={cat.requiredCount} className="mt-2" />
                   </div>
-
-                  <div className="flex items-center gap-3 self-end sm:self-center">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        Required Target:
-                      </label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={cat.requiredCount}
-                        onChange={(e) => handleTargetChange(cat.id, Number(e.target.value))}
-                        className="w-24 h-9 text-center font-bold text-slate-900 dark:text-white"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                      aria-label="Remove category"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </CardContent>
 
-          {/* Add New Category Box */}
           <div className="p-4 mx-6 mb-6 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex flex-col sm:flex-row items-center gap-3">
             <Input
               type="text"
@@ -181,7 +232,7 @@ export default function TargetSettingsPage() {
           </div>
 
           <CardFooter className="flex items-center justify-end border-t border-slate-100 dark:border-slate-800 pt-4">
-            <Button type="submit" variant="primary" className="shadow-sm gap-1.5">
+            <Button type="submit" variant="primary" disabled={loading} className="shadow-sm gap-1.5">
               <Save className="h-4 w-4" />
               Save Target Changes
             </Button>

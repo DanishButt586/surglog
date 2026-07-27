@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { Stethoscope, Sun, Moon, Lock, Mail, User, ArrowRight } from "lucide-react";
+import { Stethoscope, Sun, Moon, Lock, Mail, User, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -18,14 +19,61 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [specialty, setSpecialty] = useState("General Surgery");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/dashboard");
+    setLoading(true);
+    setErrorMsg(null);
+
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          specialty: specialty,
+        },
+      },
+    });
+
+    if (error) {
+      setErrorMsg(error.message);
+      setLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      // Upsert profile row directly to ensure profile row exists
+      await supabase.from("profiles").upsert({
+        id: data.user.id,
+        full_name: name,
+      });
+
+      // Seed initial target categories for the user if database trigger hasn't fired
+      const defaultCategories = [
+        { user_id: data.user.id, category: "Laparoscopic Cholecystectomy", required_count: 15 },
+        { user_id: data.user.id, category: "Appendectomy", required_count: 10 },
+        { user_id: data.user.id, category: "Colectomy", required_count: 6 },
+        { user_id: data.user.id, category: "Inguinal Hernia Repair", required_count: 8 },
+        { user_id: data.user.id, category: "Arteriovenous Fistula", required_count: 5 },
+        { user_id: data.user.id, category: "Mastectomy", required_count: 4 },
+        { user_id: data.user.id, category: "Thyroidectomy", required_count: 5 },
+        { user_id: data.user.id, category: "Carotid Endarterectomy", required_count: 3 },
+      ];
+
+      await supabase.from("targets").upsert(defaultCategories, { onConflict: "user_id,category" });
+
+      router.push("/dashboard");
+      router.refresh();
+    }
   };
 
   return (
@@ -61,6 +109,13 @@ export default function SignupPage() {
             <CardDescription>Join thousands of surgical trainees tracking case requirements</CardDescription>
           </CardHeader>
           <CardContent>
+            {errorMsg && (
+              <div className="mb-4 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Full Name & Title</label>
@@ -115,7 +170,7 @@ export default function SignupPage() {
                   <Input
                     type="password"
                     required
-                    placeholder="At least 8 characters"
+                    placeholder="At least 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-10"
@@ -123,9 +178,18 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <Button type="submit" variant="primary" className="w-full h-11 text-base shadow-sm">
-                Create Account & Start Logging
-                <ArrowRight className="h-4 w-4 ml-1" />
+              <Button type="submit" variant="primary" disabled={loading} className="w-full h-11 text-base shadow-sm">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Creating account...
+                  </>
+                ) : (
+                  <>
+                    Create Account & Start Logging
+                    <ArrowRight className="h-4 w-4 ml-1" />
+                  </>
+                )}
               </Button>
             </form>
           </CardContent>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -28,9 +30,45 @@ const navItems = [
 export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [userName, setUserName] = useState<string>("Surgical Resident");
+  const [userEmail, setUserEmail] = useState<string>("");
 
-  const handleLogout = () => {
+  useEffect(() => {
+    async function loadUser() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || "");
+        const fullName = user.user_metadata?.full_name;
+        if (fullName) {
+          setUserName(fullName);
+        } else {
+          // Fetch from profiles
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("id", user.id)
+            .single();
+          if (profile?.full_name) {
+            setUserName(profile.full_name);
+          }
+        }
+      }
+    }
+    loadUser();
+  }, []);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     router.push("/");
+    router.refresh();
+  };
+
+  const getInitials = (nameStr: string) => {
+    const parts = nameStr.replace(/^Dr\.\s*/i, "").trim().split(" ");
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return (parts[0]?.[0] || "DR").toUpperCase();
   };
 
   return (
@@ -98,12 +136,12 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
       {/* User Info & Logout Footer */}
       <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-700/60 space-y-3">
         <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
-          <div className="h-9 w-9 rounded-full bg-teal-600 text-white font-semibold text-xs flex items-center justify-center">
-            DR
+          <div className="h-9 w-9 rounded-full bg-teal-600 text-white font-semibold text-xs flex items-center justify-center flex-shrink-0">
+            {getInitials(userName)}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">Dr. Alex Reed</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">General Surgery PGY-3</p>
+            <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{userName}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{userEmail || "Logged in"}</p>
           </div>
         </div>
 
@@ -111,7 +149,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
           variant="outline"
           size="sm"
           onClick={handleLogout}
-          className="w-full justify-start text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-slate-200 dark:border-slate-700"
+          className="w-full justify-start text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-slate-200 dark:border-slate-700 cursor-pointer"
         >
           <LogOut className="h-4 w-4 mr-2" />
           Log Out

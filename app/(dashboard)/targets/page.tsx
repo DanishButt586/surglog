@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function TargetSettingsPage() {
   const [categories, setCategories] = useState<CategoryTarget[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -62,27 +63,39 @@ export default function TargetSettingsPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
-      const upsertPayload = categories.map((cat) => ({
-        user_id: user.id,
-        category: cat.name,
-        required_count: cat.requiredCount,
-      }));
+      if (user) {
+        const upsertPayload = categories.map((cat) => ({
+          user_id: user.id,
+          category: cat.name,
+          required_count: cat.requiredCount,
+        }));
 
-      await supabase.from("targets").upsert(upsertPayload, { onConflict: "user_id,category" });
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
+        const { error: upsertError } = await supabase.from("targets").upsert(upsertPayload, { onConflict: "user_id,category" });
+        if (upsertError) throw upsertError;
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3000);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to save target changes.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleResetDefaults = () => setCategories(INITIAL_CATEGORIES);
 
   const handleAddCategory = () => {
     if (!newCategoryName.trim()) return;
+    if (categories.some(c => c.name.toLowerCase() === newCategoryName.trim().toLowerCase())) {
+      setError('A category with this name already exists.');
+      return;
+    }
+    setError(null);
     const newCat: CategoryTarget = {
       id: `cat-${Date.now()}`,
       name: newCategoryName.trim(),
@@ -95,11 +108,17 @@ export default function TargetSettingsPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    const targetToDelete = categories.find((c) => c.id === id);
-    setCategories(categories.filter((c) => c.id !== id));
-    if (targetToDelete && !id.startsWith("cat-")) {
-      const supabase = createClient();
-      await supabase.from("targets").delete().eq("id", id);
+    setError(null);
+    try {
+      const targetToDelete = categories.find((c) => c.id === id);
+      if (targetToDelete && !id.startsWith("cat-")) {
+        const supabase = createClient();
+        const { error: deleteError } = await supabase.from("targets").delete().eq("id", id);
+        if (deleteError) throw deleteError;
+      }
+      setCategories(categories.filter((c) => c.id !== id));
+    } catch (err: any) {
+      setError(err.message || "Failed to delete category.");
     }
   };
 
@@ -120,6 +139,12 @@ export default function TargetSettingsPage() {
       {savedSuccess && (
         <Alert tone="success" title="Target requirements saved">
           Your dashboard progress bars have been updated accordingly.
+        </Alert>
+      )}
+
+      {error && (
+        <Alert tone="error" title="Error">
+          {error}
         </Alert>
       )}
 

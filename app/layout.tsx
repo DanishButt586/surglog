@@ -10,8 +10,33 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SurgLog — Surgical Case Logbook & Tracker",
-  description: "Track surgical procedures, monitor training requirements, and boost surgical study with AI assistance.",
+  title: {
+    default: "SurgLog — Surgical Case Logbook & Tracker",
+    template: "%s | SurgLog",
+  },
+  description:
+    "The modern digital logbook for surgical trainees. Log operative cases, track ACGME/RCS audit targets, analyze trends, and study with an AI-powered assistant.",
+  keywords: [
+    "surgical logbook",
+    "case tracker",
+    "ACGME",
+    "surgical training",
+    "operative log",
+    "medical education",
+    "SurgLog",
+  ],
+  authors: [{ name: "SurgLog Team" }],
+  openGraph: {
+    title: "SurgLog — Surgical Case Logbook & Tracker",
+    description:
+      "Log operative cases, track audit targets, and ace surgical exams with AI assistance.",
+    siteName: "SurgLog",
+    type: "website",
+    locale: "en_US",
+  },
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

@@ -25,6 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TableWrapper, TableHead, TableBody, TableRow, TH, TD } from "@/components/ui/table";
 import { LoadingState, EmptyState, Spinner } from "@/components/ui/states";
 import { Modal } from "@/components/ui/modal";
+import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/page-header";
 import { INITIAL_CASES, INITIAL_CATEGORIES, SurgicalCase } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
@@ -34,6 +35,7 @@ export default function CaseListPage() {
   const [casesList, setCasesList] = useState<SurgicalCase[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState("Surgical Resident");
   const [userEmail, setUserEmail] = useState("");
 
@@ -110,43 +112,54 @@ export default function CaseListPage() {
 
   const handleSeedSampleCases = async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
-      const samples = INITIAL_CASES.map((c) => ({
-        user_id: user.id,
-        date: c.date,
-        procedure_name: c.procedureName,
-        category: c.category,
-        role: c.role,
-        supervisor_name: c.supervisorName,
-        hospital_ward: c.hospitalWard,
-        complexity: c.complexity,
-        patient_age: c.patientAge,
-        patient_gender: c.patientGender,
-        notes: c.notes,
-        approval_status: c.approvalStatus || "pending",
-        admin_comment: c.adminComment || "",
-      }));
+      if (user) {
+        const samples = INITIAL_CASES.map((c) => ({
+          user_id: user.id,
+          date: c.date,
+          procedure_name: c.procedureName,
+          category: c.category,
+          role: c.role,
+          supervisor_name: c.supervisorName,
+          hospital_ward: c.hospitalWard,
+          complexity: c.complexity,
+          patient_age: c.patientAge,
+          patient_gender: c.patientGender,
+          notes: c.notes,
+          approval_status: c.approvalStatus || "pending",
+          admin_comment: c.adminComment || "",
+        }));
 
-      await supabase.from("cases").insert(samples);
-      await fetchCases();
-    } else {
+        const { error: insertError } = await supabase.from("cases").insert(samples);
+        if (insertError) throw insertError;
+        await fetchCases();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load sample cases.");
+    } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteCase = async (id: string) => {
     setDeleting(true);
-    const supabase = createClient();
-    const { error } = await supabase.from("cases").delete().eq("id", id);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("cases").delete().eq("id", id);
 
-    if (!error) {
+      if (error) throw error;
       setCasesList((prev) => prev.filter((c) => c.id !== id));
+    } catch (err: any) {
+      setError(err.message || "Failed to delete case.");
+    } finally {
+      setDeleting(false);
+      setDeleteTargetId(null);
     }
-    setDeleting(false);
-    setDeleteTargetId(null);
   };
 
   const filteredCases = casesList.filter((c) => {
@@ -263,6 +276,12 @@ export default function CaseListPage() {
           </>
         }
       />
+
+      {error && (
+        <Alert tone="error" title="Error">
+          {error}
+        </Alert>
+      )}
 
       {/* Filters */}
       <Card>

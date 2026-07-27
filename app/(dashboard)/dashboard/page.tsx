@@ -22,68 +22,76 @@ import { StatCard } from "@/components/stat-card";
 import { LoadingState, EmptyState } from "@/components/ui/states";
 import { INITIAL_CATEGORIES, SurgicalCase, CategoryTarget } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+import { Alert } from "@/components/ui/alert";
 
 export default function DashboardPage() {
   const [categories, setCategories] = useState<CategoryTarget[]>(INITIAL_CATEGORIES);
   const [cases, setCases] = useState<SurgicalCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    setError(null);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
 
-    if (user) {
-      const { data: casesData } = await supabase
-        .from("cases")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("date", { ascending: false });
+      if (user) {
+        const { data: casesData } = await supabase
+          .from("cases")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("date", { ascending: false });
 
-      let userCases: SurgicalCase[] = [];
-      if (casesData && casesData.length > 0) {
-        userCases = casesData.map((item: any) => ({
-          id: item.id,
-          date: item.date,
-          procedureName: item.procedure_name,
-          category: item.category,
-          role: item.role,
-          supervisorName: item.supervisor_name,
-          hospitalWard: item.hospital_ward,
-          complexity: item.complexity || "Medium",
-          patientAge: item.patient_age || 0,
-          patientGender: item.patient_gender || "Female",
-          notes: item.notes || "",
-        }));
+        let userCases: SurgicalCase[] = [];
+        if (casesData && casesData.length > 0) {
+          userCases = casesData.map((item: any) => ({
+            id: item.id,
+            date: item.date,
+            procedureName: item.procedure_name,
+            category: item.category,
+            role: item.role,
+            supervisorName: item.supervisor_name,
+            hospitalWard: item.hospital_ward,
+            complexity: item.complexity || "Medium",
+            patientAge: item.patient_age || 0,
+            patientGender: item.patient_gender || "Female",
+            notes: item.notes || "",
+          }));
+        }
+
+        setCases(userCases);
+
+        const { data: targetsData } = await supabase
+          .from("targets")
+          .select("*")
+          .eq("user_id", user.id);
+
+        if (targetsData && targetsData.length > 0) {
+          const mappedTargets: CategoryTarget[] = targetsData.map((t: any) => {
+            const currentCount = userCases.filter((c) => c.category === t.category).length;
+            return {
+              id: t.id,
+              name: t.category,
+              requiredCount: t.required_count,
+              currentCount,
+            };
+          });
+          setCategories(mappedTargets);
+        } else {
+          const mappedDefaults = INITIAL_CATEGORIES.map((cat) => ({
+            ...cat,
+            currentCount: userCases.filter((c) => c.category === cat.name).length,
+          }));
+          setCategories(mappedDefaults);
+        }
       }
-
-      setCases(userCases);
-
-      const { data: targetsData } = await supabase
-        .from("targets")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (targetsData && targetsData.length > 0) {
-        const mappedTargets: CategoryTarget[] = targetsData.map((t: any) => {
-          const currentCount = userCases.filter((c) => c.category === t.category).length;
-          return {
-            id: t.id,
-            name: t.category,
-            requiredCount: t.required_count,
-            currentCount,
-          };
-        });
-        setCategories(mappedTargets);
-      } else {
-        const mappedDefaults = INITIAL_CATEGORIES.map((cat) => ({
-          ...cat,
-          currentCount: userCases.filter((c) => c.category === cat.name).length,
-        }));
-        setCategories(mappedDefaults);
-      }
+    } catch (err: any) {
+      setError(err.message || "Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -108,6 +116,12 @@ export default function DashboardPage() {
           </Link>
         }
       />
+
+      {error && (
+        <Alert tone="error" title="Error">
+          {error}
+        </Alert>
+      )}
 
       {/* Stat row. Stays 2-up between md and lg: at md the sidebar takes 256px,
           which leaves each of three columns too narrow for the label + value. */}

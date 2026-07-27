@@ -23,6 +23,7 @@ import { LoadingState, EmptyState } from "@/components/ui/states";
 import { INITIAL_CATEGORIES, SurgicalCase } from "@/lib/mock-data";
 import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Alert } from "@/components/ui/alert";
 
 /** Reads a themed CSS custom property so charts follow light/dark mode. */
 function useChartColors() {
@@ -87,53 +88,60 @@ export default function AnalyticsPage() {
   const [cases, setCases] = useState<SurgicalCase[]>([]);
   const [targetMap, setTargetMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const colors = useChartColors();
   const isCompact = useIsCompact();
 
   useEffect(() => {
     async function fetchAnalyticsData() {
       setLoading(true);
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      setError(null);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
 
-      if (user) {
-        const { data: casesData } = await supabase.from("cases").select("*").eq("user_id", user.id);
+        if (user) {
+          const { data: casesData } = await supabase.from("cases").select("*").eq("user_id", user.id);
 
-        if (casesData) {
-          const mapped: SurgicalCase[] = casesData.map((item: any) => ({
-            id: item.id,
-            date: item.date,
-            procedureName: item.procedure_name,
-            category: item.category,
-            role: item.role,
-            supervisorName: item.supervisor_name,
-            hospitalWard: item.hospital_ward,
-            complexity: item.complexity || "Medium",
-            patientAge: item.patient_age || 0,
-            patientGender: item.patient_gender || "Female",
-            notes: item.notes || "",
-          }));
-          setCases(mapped);
+          if (casesData) {
+            const mapped: SurgicalCase[] = casesData.map((item: any) => ({
+              id: item.id,
+              date: item.date,
+              procedureName: item.procedure_name,
+              category: item.category,
+              role: item.role,
+              supervisorName: item.supervisor_name,
+              hospitalWard: item.hospital_ward,
+              complexity: item.complexity || "Medium",
+              patientAge: item.patient_age || 0,
+              patientGender: item.patient_gender || "Female",
+              notes: item.notes || "",
+            }));
+            setCases(mapped);
+          }
+
+          const { data: targetsData } = await supabase
+            .from("targets")
+            .select("category, required_count")
+            .eq("user_id", user.id);
+
+          const tMap: Record<string, number> = {};
+          if (targetsData && targetsData.length > 0) {
+            targetsData.forEach((t: any) => {
+              tMap[t.category] = t.required_count;
+            });
+          } else {
+            INITIAL_CATEGORIES.forEach((c) => {
+              tMap[c.name] = c.requiredCount;
+            });
+          }
+          setTargetMap(tMap);
         }
-
-        const { data: targetsData } = await supabase
-          .from("targets")
-          .select("category, required_count")
-          .eq("user_id", user.id);
-
-        const tMap: Record<string, number> = {};
-        if (targetsData && targetsData.length > 0) {
-          targetsData.forEach((t: any) => {
-            tMap[t.category] = t.required_count;
-          });
-        } else {
-          INITIAL_CATEGORIES.forEach((c) => {
-            tMap[c.name] = c.requiredCount;
-          });
-        }
-        setTargetMap(tMap);
+      } catch (err: any) {
+        setError(err.message || "Failed to load analytics data.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchAnalyticsData();
   }, []);
@@ -200,6 +208,12 @@ export default function AnalyticsPage() {
         title="Surgical Case Analytics"
         description="Visual metrics tracking procedure distribution, 12-month volume trends, and surgical role autonomy."
       />
+
+      {error && (
+        <Alert tone="error" title="Error">
+          {error}
+        </Alert>
+      )}
 
       {loading ? (
         <Card>

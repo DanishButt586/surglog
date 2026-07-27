@@ -167,7 +167,9 @@ export default function AdminPanelPage() {
       .update({ approval_status: newStatus, admin_comment: currentComment })
       .eq("id", caseId);
 
-    if (!error) {
+    if (error) {
+      setToastMessage(`Error updating status: ${error.message}`);
+    } else {
       setTraineeCases((prev) =>
         prev.map((c) =>
           c.id === caseId ? { ...c, approvalStatus: newStatus, adminComment: currentComment } : c
@@ -176,8 +178,8 @@ export default function AdminPanelPage() {
       const label =
         newStatus === "needs_review" ? "Needs Review" : newStatus === "approved" ? "Approved" : "Pending";
       setToastMessage(`Review status updated to “${label}”.`);
-      setTimeout(() => setToastMessage(null), 3000);
     }
+    setTimeout(() => setToastMessage(null), 3000);
     setSavingCaseId(null);
   };
 
@@ -195,13 +197,15 @@ export default function AdminPanelPage() {
       })
       .eq("id", caseId);
 
-    if (!error) {
+    if (error) {
+      setToastMessage(`Error saving comment: ${error.message}`);
+    } else {
       setTraineeCases((prev) =>
         prev.map((c) => (c.id === caseId ? { ...c, adminComment: commentToSave } : c))
       );
       setToastMessage("Consultant feedback saved.");
-      setTimeout(() => setToastMessage(null), 3000);
     }
+    setTimeout(() => setToastMessage(null), 3000);
     setSavingCaseId(null);
   };
 

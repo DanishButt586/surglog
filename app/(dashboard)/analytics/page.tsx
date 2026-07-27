@@ -98,25 +98,26 @@ export default function AnalyticsPage() {
   const observedCount = cases.filter((c) => c.role === "Observed").length;
 
   const roleBreakdownData = [
-    { name: "Performed", value: performedCount || (cases.length === 0 ? 1 : 0), color: "#0D9488" },
+    { name: "Performed", value: performedCount, color: "#0D9488" },
     { name: "Assisted", value: assistedCount, color: "#10B981" },
     { name: "Observed", value: observedCount, color: "#F59E0B" },
   ];
 
-  // Compute Monthly Trend (Line Chart)
-  const monthMap: Record<string, number> = {};
-  cases.forEach((c) => {
-    const monthKey = c.date.substring(0, 7); // YYYY-MM
-    monthMap[monthKey] = (monthMap[monthKey] || 0) + 1;
-  });
+  // Compute 12 Months Trend (Line Chart)
+  const now = new Date();
+  const last12Months: { monthKey: string; label: string }[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthKey = d.toISOString().substring(0, 7);
+    const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    last12Months.push({ monthKey, label });
+  }
 
-  const sortedMonths = Object.keys(monthMap).sort();
-  const monthlyTrendData = sortedMonths.map((m) => {
-    const dateObj = new Date(`${m}-01`);
-    const monthName = dateObj.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  const monthlyTrendData = last12Months.map(({ monthKey, label }) => {
+    const count = cases.filter((c) => c.date.startsWith(monthKey)).length;
     return {
-      month: monthName,
-      cases: monthMap[m],
+      month: label,
+      cases: count,
     };
   });
 
@@ -131,7 +132,7 @@ export default function AnalyticsPage() {
           Surgical Case Analytics
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Visual metrics tracking procedure distribution, monthly volume trends, and surgical role autonomy from Supabase.
+          Visual metrics tracking procedure distribution, 12-month volume trends, and surgical role autonomy from Supabase.
         </p>
       </div>
 
@@ -198,7 +199,7 @@ export default function AnalyticsPage() {
             {/* Bar Chart: Cases by Category (7 cols) */}
             <Card className="lg:col-span-7">
               <CardHeader>
-                <CardTitle className="text-lg font-bold">Procedure Volume vs Target by Category</CardTitle>
+                <CardTitle className="text-lg font-bold">Total Cases per Category</CardTitle>
                 <CardDescription>Logged surgical count compared against required target</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
@@ -233,8 +234,8 @@ export default function AnalyticsPage() {
             {/* Doughnut Chart: Role Breakdown (5 cols) */}
             <Card className="lg:col-span-5">
               <CardHeader>
-                <CardTitle className="text-lg font-bold">Surgical Role Breakdown</CardTitle>
-                <CardDescription>Distribution of Observed, Assisted, and Performed cases</CardDescription>
+                <CardTitle className="text-lg font-bold">Role Breakdown (Observed / Assisted / Performed)</CardTitle>
+                <CardDescription>Surgical involvement percentage distribution</CardDescription>
               </CardHeader>
               <CardContent className="h-80 flex flex-col justify-center items-center">
                 <ResponsiveContainer width="100%" height="100%">
@@ -267,42 +268,36 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          {/* Chart Row 2: Line Chart (Monthly Trend) */}
+          {/* Chart Row 2: Line Chart (Monthly Trend for Last 12 Months) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-bold">Monthly Case Logging Trend</CardTitle>
-              <CardDescription>Number of cases logged per month over time</CardDescription>
+              <CardTitle className="text-lg font-bold">Cases Logged per Month (Last 12 Months)</CardTitle>
+              <CardDescription>Continuous monthly procedure volume trend</CardDescription>
             </CardHeader>
             <CardContent className="h-72">
-              {monthlyTrendData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyTrendData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "8px",
-                        color: "var(--foreground)",
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="cases"
-                      stroke="#0D9488"
-                      strokeWidth={3}
-                      dot={{ r: 5, fill: "#0D9488" }}
-                      activeDot={{ r: 7 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                  Log cases across multiple dates to view monthly trends over time.
-                </div>
-              )}
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyTrendData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "var(--card)",
+                      borderColor: "var(--border)",
+                      borderRadius: "8px",
+                      color: "var(--foreground)",
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="cases"
+                    stroke="#0D9488"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#0D9488" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         </>

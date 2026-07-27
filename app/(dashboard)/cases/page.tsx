@@ -13,6 +13,8 @@ import {
   Loader2,
   Sparkles,
   ClipboardList,
+  Download,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,11 +23,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { INITIAL_CASES, INITIAL_CATEGORIES, SurgicalCase } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+import { exportCasesToCSV, exportCasesToPDF } from "@/lib/export-utils";
 
 export default function CaseListPage() {
   const [casesList, setCasesList] = useState<SurgicalCase[]>([]);
   const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("Surgical Resident");
+  const [userEmail, setUserEmail] = useState("");
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +48,18 @@ export default function CaseListPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
+      setUserEmail(user.email || "");
+      if (user.user_metadata?.full_name) {
+        setUserName(user.user_metadata.full_name);
+      } else {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        if (profile?.full_name) setUserName(profile.full_name);
+      }
+
       // Fetch cases
       const { data, error } = await supabase
         .from("cases")
@@ -144,6 +161,20 @@ export default function CaseListPage() {
     return matchesSearch && matchesRole && matchesCategory && matchesDate;
   });
 
+  // Calculate Category Totals for PDF Summary
+  const categoryTotals: Record<string, number> = {};
+  filteredCases.forEach((c) => {
+    categoryTotals[c.category] = (categoryTotals[c.category] || 0) + 1;
+  });
+
+  const handleExportCSV = () => {
+    exportCasesToCSV(filteredCases, userName);
+  };
+
+  const handleExportPDF = () => {
+    exportCasesToPDF(filteredCases, userName, userEmail, categoryTotals);
+  };
+
   const roleBadges = {
     Performed: "teal",
     Assisted: "success",
@@ -161,30 +192,50 @@ export default function CaseListPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             Surgical Case Logbook
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            View, filter, search, and manage all your logged operative cases.
+            View, filter, search, and export your logged operative cases from Supabase.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={filteredCases.length === 0}
+            className="gap-1.5 text-xs font-semibold"
+          >
+            <Download className="h-4 w-4" /> Export CSV
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportPDF}
+            disabled={filteredCases.length === 0}
+            className="gap-1.5 text-xs font-semibold border-teal-500 text-teal-700 dark:text-teal-300"
+          >
+            <FileText className="h-4 w-4" /> Export Board PDF
+          </Button>
+
           {casesList.length === 0 && !loading && (
             <Button
               variant="outline"
               size="sm"
               onClick={handleSeedSampleCases}
-              className="gap-1.5 border-teal-500 text-teal-700 dark:text-teal-300"
+              className="gap-1.5"
             >
-              <Sparkles className="h-4 w-4" /> Load Sample Cases
+              <Sparkles className="h-4 w-4 text-amber-500" /> Sample Cases
             </Button>
           )}
+
           <Link href="/cases/new">
-            <Button variant="primary" className="shadow-sm">
-              <Plus className="h-4 w-4 mr-1.5" />
-              Log New Case
+            <Button variant="primary" size="sm" className="shadow-sm gap-1.5">
+              <Plus className="h-4 w-4" /> Log Case
             </Button>
           </Link>
         </div>

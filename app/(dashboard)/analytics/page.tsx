@@ -17,14 +17,78 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/page-header";
+import { StatCard } from "@/components/stat-card";
+import { LoadingState, EmptyState } from "@/components/ui/states";
 import { INITIAL_CATEGORIES, SurgicalCase } from "@/lib/mock-data";
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity, Loader2 } from "lucide-react";
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+
+/** Reads a themed CSS custom property so charts follow light/dark mode. */
+function useChartColors() {
+  const [colors, setColors] = useState({
+    grid: "#cbd5e1",
+    axis: "#64748b",
+    series1: "#0d9488",
+    series2: "#10b981",
+    series3: "#f59e0b",
+    muted: "#94a3b8",
+    card: "#ffffff",
+    border: "#e2e8f0",
+    foreground: "#1e293b",
+  });
+
+  useEffect(() => {
+    const read = () => {
+      const styles = getComputedStyle(document.documentElement);
+      const get = (name: string, fallback: string) =>
+        styles.getPropertyValue(name).trim() || fallback;
+
+      setColors({
+        grid: get("--chart-grid", "#cbd5e1"),
+        axis: get("--chart-axis", "#64748b"),
+        series1: get("--chart-1", "#0d9488"),
+        series2: get("--chart-2", "#10b981"),
+        series3: get("--chart-3", "#f59e0b"),
+        muted: get("--chart-muted", "#94a3b8"),
+        card: get("--card", "#ffffff"),
+        border: get("--border", "#e2e8f0"),
+        foreground: get("--foreground", "#1e293b"),
+      });
+    };
+
+    read();
+
+    // next-themes toggles a class on <html>; re-read when it changes.
+    const observer = new MutationObserver(read);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
+  return colors;
+}
+
+/** Below `md` the charts get shorter and drop dense tick labels. */
+function useIsCompact() {
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setCompact(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return compact;
+}
 
 export default function AnalyticsPage() {
   const [cases, setCases] = useState<SurgicalCase[]>([]);
   const [targetMap, setTargetMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const colors = useChartColors();
+  const isCompact = useIsCompact();
 
   useEffect(() => {
     async function fetchAnalyticsData() {
@@ -33,11 +97,7 @@ export default function AnalyticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (user) {
-        // Fetch cases
-        const { data: casesData } = await supabase
-          .from("cases")
-          .select("*")
-          .eq("user_id", user.id);
+        const { data: casesData } = await supabase.from("cases").select("*").eq("user_id", user.id);
 
         if (casesData) {
           const mapped: SurgicalCase[] = casesData.map((item: any) => ({
@@ -56,7 +116,6 @@ export default function AnalyticsPage() {
           setCases(mapped);
         }
 
-        // Fetch targets
         const { data: targetsData } = await supabase
           .from("targets")
           .select("category, required_count")
@@ -79,222 +138,242 @@ export default function AnalyticsPage() {
     fetchAnalyticsData();
   }, []);
 
-  // Compute Bar Chart Data (Category vs Target)
-  const categoryNames = Object.keys(targetMap).length > 0 ? Object.keys(targetMap) : INITIAL_CATEGORIES.map((c) => c.name);
+  const categoryNames =
+    Object.keys(targetMap).length > 0
+      ? Object.keys(targetMap)
+      : INITIAL_CATEGORIES.map((c) => c.name);
+
   const categoryBarData = categoryNames.map((catName) => {
     const loggedCount = cases.filter((c) => c.category === catName).length;
     const required = targetMap[catName] || 10;
     return {
-      name: catName.length > 16 ? `${catName.substring(0, 14)}...` : catName,
+      name: catName.length > 16 ? `${catName.substring(0, 14)}…` : catName,
       fullName: catName,
       Logged: loggedCount,
       Target: required,
     };
   });
 
-  // Compute Role Breakdown (Doughnut Chart)
   const performedCount = cases.filter((c) => c.role === "Performed").length;
   const assistedCount = cases.filter((c) => c.role === "Assisted").length;
   const observedCount = cases.filter((c) => c.role === "Observed").length;
 
   const roleBreakdownData = [
-    { name: "Performed", value: performedCount, color: "#0D9488" },
-    { name: "Assisted", value: assistedCount, color: "#10B981" },
-    { name: "Observed", value: observedCount, color: "#F59E0B" },
+    { name: "Performed", value: performedCount },
+    { name: "Assisted", value: assistedCount },
+    { name: "Observed", value: observedCount },
   ];
+  const pieColors = [colors.series1, colors.series2, colors.series3];
 
-  // Compute 12 Months Trend (Line Chart)
   const now = new Date();
   const last12Months: { monthKey: string; label: string }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const monthKey = d.toISOString().substring(0, 7);
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
     last12Months.push({ monthKey, label });
   }
 
-  const monthlyTrendData = last12Months.map(({ monthKey, label }) => {
-    const count = cases.filter((c) => c.date.startsWith(monthKey)).length;
-    return {
-      month: label,
-      cases: count,
-    };
-  });
+  const monthlyTrendData = last12Months.map(({ monthKey, label }) => ({
+    month: label,
+    cases: cases.filter((c) => c.date.startsWith(monthKey)).length,
+  }));
 
-  const pieColors = ["#0D9488", "#10B981", "#F59E0B"];
-  const primaryAutonomyPct = cases.length > 0 ? Math.round((performedCount / cases.length) * 100) : 0;
+  const primaryAutonomyPct =
+    cases.length > 0 ? Math.round((performedCount / cases.length) * 100) : 0;
+
+  // One tooltip style shared by all three charts, driven by theme tokens.
+  const tooltipStyle = {
+    backgroundColor: colors.card,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "0.5rem",
+    color: colors.foreground,
+    fontSize: "12px",
+    boxShadow: "0 4px 12px rgb(15 23 42 / 0.12)",
+  } as const;
+
+  const hasData = cases.length > 0;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-          Surgical Case Analytics
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Visual metrics tracking procedure distribution, 12-month volume trends, and surgical role autonomy from Supabase.
-        </p>
-      </div>
+      <PageHeader
+        title="Surgical Case Analytics"
+        description="Visual metrics tracking procedure distribution, 12-month volume trends, and surgical role autonomy."
+      />
 
       {loading ? (
-        <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-teal-400" />
-          <span>Calculating live surgical analytics from Supabase...</span>
-        </div>
+        <Card>
+          <LoadingState label="Calculating live surgical analytics…" minHeight="min-h-[360px]" />
+        </Card>
       ) : (
         <>
-          {/* Top Analytics Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500">Total Cases</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{cases.length}</p>
-                  </div>
-                  <Activity className="h-8 w-8 text-teal-600 dark:text-teal-400 opacity-80" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500">Primary Autonomy</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{primaryAutonomyPct}%</p>
-                  </div>
-                  <PieChartIcon className="h-8 w-8 text-emerald-600 dark:text-emerald-400 opacity-80" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500">Performed Volume</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{performedCount} cases</p>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-amber-600 dark:text-amber-400 opacity-80" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500">Assisted / Observed</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{assistedCount + observedCount} cases</p>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-teal-600 dark:text-teal-400 opacity-80" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4">
+            <StatCard label="Total Cases" value={cases.length} icon={Activity} tone="teal" />
+            <StatCard
+              label="Primary Autonomy"
+              value={`${primaryAutonomyPct}%`}
+              icon={PieChartIcon}
+              tone="emerald"
+            />
+            <StatCard
+              label="Performed Volume"
+              value={performedCount}
+              footnote="cases as primary surgeon"
+              icon={TrendingUp}
+              tone="amber"
+            />
+            <StatCard
+              label="Assisted / Observed"
+              value={assistedCount + observedCount}
+              footnote="supporting-role cases"
+              icon={BarChart3}
+              tone="teal"
+            />
           </div>
 
-          {/* Chart Row 1: Bar Chart (Categories) & Doughnut Chart (Roles) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Bar Chart: Cases by Category (7 cols) */}
-            <Card className="lg:col-span-7">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold">Total Cases per Category</CardTitle>
-                <CardDescription>Logged surgical count compared against required target</CardDescription>
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12">
+            <Card className="flex flex-col lg:col-span-7">
+              {/* min-h on the header keeps the two chart cards in this row
+                  starting their plot area at the same y-offset. */}
+              <CardHeader className="pb-2 sm:min-h-[6.5rem]">
+                <CardTitle>Total Cases per Category</CardTitle>
+                <CardDescription>Logged surgical count compared against target</CardDescription>
               </CardHeader>
-              <CardContent className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryBarData} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis
-                      dataKey="name"
-                      tick={{ fontSize: 11 }}
-                      angle={-30}
-                      textAnchor="end"
-                      interval={0}
-                    />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "8px",
-                        color: "var(--foreground)",
-                      }}
-                      formatter={(value: any, name: any) => [value, name]}
-                      labelFormatter={(label, items) => items[0]?.payload?.fullName || label}
-                    />
-                    <Bar dataKey="Logged" fill="#0D9488" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Target" fill="#94A3B8" opacity={0.4} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Doughnut Chart: Role Breakdown (5 cols) */}
-            <Card className="lg:col-span-5">
-              <CardHeader>
-                <CardTitle className="text-lg font-bold">Role Breakdown (Observed / Assisted / Performed)</CardTitle>
-                <CardDescription>Surgical involvement percentage distribution</CardDescription>
-              </CardHeader>
-              <CardContent className="h-80 flex flex-col justify-center items-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={roleBreakdownData}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
+              <CardContent className="h-72 pt-2 sm:h-80">
+                {hasData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={categoryBarData}
+                      margin={{ top: 8, right: 8, left: -18, bottom: isCompact ? 8 : 48 }}
                     >
-                      {roleBreakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "8px",
-                        color: "var(--foreground)",
-                      }}
-                    />
-                    <Legend verticalAlign="bottom" height={36} />
-                  </PieChart>
-                </ResponsiveContainer>
+                      <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
+                      <XAxis
+                        dataKey="name"
+                        stroke={colors.axis}
+                        tickLine={false}
+                        axisLine={{ stroke: colors.grid }}
+                        // On phones the angled per-category labels overlap into
+                        // an unreadable smear, so they are hidden there and the
+                        // tooltip carries the category name instead.
+                        tick={isCompact ? false : { fontSize: 11, fill: colors.axis }}
+                        angle={isCompact ? 0 : -35}
+                        textAnchor={isCompact ? "middle" : "end"}
+                        interval={0}
+                        height={isCompact ? 8 : 60}
+                      />
+                      <YAxis
+                        stroke={colors.axis}
+                        tickLine={false}
+                        axisLine={false}
+                        allowDecimals={false}
+                        tick={{ fontSize: 11, fill: colors.axis }}
+                        width={40}
+                      />
+                      <Tooltip
+                        contentStyle={tooltipStyle}
+                        cursor={{ fill: colors.grid, opacity: 0.25 }}
+                        labelFormatter={(label, items) => items?.[0]?.payload?.fullName || label}
+                      />
+                      <Bar dataKey="Logged" fill={colors.series1} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Target" fill={colors.muted} opacity={0.45} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyState
+                    icon={BarChart3}
+                    title="No cases to chart yet"
+                    description="Log a case to see your category distribution here."
+                    minHeight="min-h-full"
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="flex flex-col lg:col-span-5">
+              <CardHeader className="pb-2 sm:min-h-[6.5rem]">
+                <CardTitle>Surgical Role Breakdown</CardTitle>
+                <CardDescription>Observed / Assisted / Performed distribution</CardDescription>
+              </CardHeader>
+              <CardContent className="h-72 pt-2 sm:h-80">
+                {hasData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                      <Pie
+                        data={roleBreakdownData}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius="45%"
+                        outerRadius="70%"
+                        paddingAngle={4}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {roleBreakdownData.map((entry, index) => (
+                          <Cell key={entry.name} fill={pieColors[index % pieColors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={32}
+                        iconType="circle"
+                        iconSize={9}
+                        formatter={(value) => (
+                          <span style={{ color: colors.axis, fontSize: 12 }}>{value}</span>
+                        )}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyState
+                    icon={PieChartIcon}
+                    title="No role data yet"
+                    description="Your Observed / Assisted / Performed split appears once you log cases."
+                    minHeight="min-h-full"
+                  />
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Chart Row 2: Line Chart (Monthly Trend for Last 12 Months) */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-bold">Cases Logged per Month (Last 12 Months)</CardTitle>
-              <CardDescription>Continuous monthly procedure volume trend</CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle>Cases Logged per Month</CardTitle>
+              <CardDescription>Rolling 12-month procedure volume trend</CardDescription>
             </CardHeader>
-            <CardContent className="h-72">
+            <CardContent className="h-64 pt-2 sm:h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyTrendData} margin={{ top: 10, right: 30, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "var(--card)",
-                      borderColor: "var(--border)",
-                      borderRadius: "8px",
-                      color: "var(--foreground)",
-                    }}
+                <LineChart
+                  data={monthlyTrendData}
+                  margin={{ top: 8, right: 12, left: -18, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    stroke={colors.axis}
+                    tickLine={false}
+                    axisLine={{ stroke: colors.grid }}
+                    tick={{ fontSize: 11, fill: colors.axis }}
+                    // Show every other month on phones so labels never collide.
+                    interval={isCompact ? 1 : 0}
+                    minTickGap={4}
                   />
+                  <YAxis
+                    stroke={colors.axis}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: colors.axis }}
+                    width={40}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: colors.grid }} />
                   <Line
                     type="monotone"
                     dataKey="cases"
-                    stroke="#0D9488"
-                    strokeWidth={3}
-                    dot={{ r: 4, fill: "#0D9488" }}
-                    activeDot={{ r: 6 }}
+                    stroke={colors.series1}
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: colors.series1, strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
                   />
                 </LineChart>
               </ResponsiveContainer>

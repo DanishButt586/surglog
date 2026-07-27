@@ -1,52 +1,61 @@
 "use client";
 
-import { Menu, Plus, Stethoscope } from "lucide-react";
+import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Link from "next/link";
+import { Brand } from "@/components/brand";
+
+/**
+ * Route → navbar heading. Keeps the top bar describing the page you are
+ * actually on instead of one hard-coded label on every route.
+ */
+const ROUTE_TITLES: { match: (path: string) => boolean; title: string; subtitle: string }[] = [
+  { match: (p) => p.startsWith("/dashboard"), title: "Dashboard", subtitle: "ACGME / RCS requirement tracking" },
+  { match: (p) => p === "/cases/new", title: "Log New Case", subtitle: "Add an operative entry to your logbook" },
+  { match: (p) => /^\/cases\/[^/]+/.test(p), title: "Edit Case", subtitle: "Update an existing logbook entry" },
+  { match: (p) => p.startsWith("/cases"), title: "Case Logbook", subtitle: "Your logged operative cases" },
+  { match: (p) => p.startsWith("/analytics"), title: "Analytics", subtitle: "Volume, distribution and autonomy trends" },
+  { match: (p) => p.startsWith("/targets"), title: "Target Settings", subtitle: "Required case counts by category" },
+  { match: (p) => p.startsWith("/ai-assistant"), title: "AI Study Assistant", subtitle: "Reflections, viva prep and case analysis" },
+  { match: (p) => p.startsWith("/admin"), title: "Admin Panel", subtitle: "Consultant case audit and approvals" },
+];
 
 export function Navbar({ onOpenMobileNav }: { onOpenMobileNav?: () => void }) {
+  const pathname = usePathname() || "";
+  const route = ROUTE_TITLES.find((entry) => entry.match(pathname));
+
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between transition-colors">
-      <div className="flex items-center gap-3">
-        {onOpenMobileNav && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onOpenMobileNav}
-            className="md:hidden text-slate-600 dark:text-slate-300"
-            aria-label="Open Navigation Menu"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        )}
+    <header className="sticky top-0 z-30 h-16 shrink-0 border-b border-slate-200 bg-white/85 backdrop-blur-md transition-colors dark:border-slate-700 dark:bg-slate-800/85">
+      <div className="mx-auto flex h-full w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          {onOpenMobileNav && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenMobileNav}
+              className="md:hidden"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
 
-        <div className="flex items-center gap-2 md:hidden">
-          <div className="h-8 w-8 rounded-lg bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center">
-            <Stethoscope className="h-5 w-5" />
+          <Brand size="sm" className="md:hidden" />
+
+          <div className="hidden min-w-0 md:block">
+            <p className="truncate text-sm font-semibold leading-snug text-slate-800 dark:text-slate-100">
+              {route?.title ?? "SurgLog"}
+            </p>
+            <p className="truncate text-xs leading-snug text-slate-500 dark:text-slate-400">
+              {route?.subtitle ?? "Surgical case logbook"}
+            </p>
           </div>
-          <span className="font-bold text-base text-slate-900 dark:text-white">SurgLog</span>
         </div>
 
-        <div className="hidden md:block">
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-            Surgical Resident Dashboard
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">ACGME / RCS Requirement Tracking</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
         </div>
-      </div>
-
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Dark Mode Toggle */}
-        <ThemeToggle className="text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" />
-
-        {/* Quick Add Case Button */}
-        <Link href="/cases/new">
-          <Button variant="primary" size="sm" className="hidden sm:flex items-center gap-1.5">
-            <Plus className="h-4 w-4" />
-            <span>Log Case</span>
-          </Button>
-        </Link>
       </div>
     </header>
   );

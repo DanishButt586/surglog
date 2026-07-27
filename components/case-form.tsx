@@ -2,16 +2,25 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/ui/field";
+import { Alert } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { SurgicalCase, INITIAL_CATEGORIES } from "@/lib/mock-data";
-import { Save, ArrowLeft, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-export function CaseForm({ initialData, isEdit = false }: { initialData?: Partial<SurgicalCase>; isEdit?: boolean }) {
+export function CaseForm({
+  initialData,
+  isEdit = false,
+}: {
+  initialData?: Partial<SurgicalCase>;
+  isEdit?: boolean;
+}) {
   const router = useRouter();
   const [successMsg, setSuccessMsg] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,12 +29,18 @@ export function CaseForm({ initialData, isEdit = false }: { initialData?: Partia
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split("T")[0]);
   const [procedureName, setProcedureName] = useState(initialData?.procedureName || "");
   const [category, setCategory] = useState(initialData?.category || INITIAL_CATEGORIES[0].name);
-  const [role, setRole] = useState<"Observed" | "Assisted" | "Performed">(initialData?.role || "Performed");
+  const [role, setRole] = useState<"Observed" | "Assisted" | "Performed">(
+    initialData?.role || "Performed"
+  );
   const [supervisorName, setSupervisorName] = useState(initialData?.supervisorName || "");
   const [hospitalWard, setHospitalWard] = useState(initialData?.hospitalWard || "");
-  const [complexity, setComplexity] = useState<"Low" | "Medium" | "High">(initialData?.complexity || "Medium");
+  const [complexity, setComplexity] = useState<"Low" | "Medium" | "High">(
+    initialData?.complexity || "Medium"
+  );
   const [patientAge, setPatientAge] = useState<number | "">(initialData?.patientAge || "");
-  const [patientGender, setPatientGender] = useState<"Male" | "Female" | "Other">(initialData?.patientGender || "Female");
+  const [patientGender, setPatientGender] = useState<"Male" | "Female" | "Other">(
+    initialData?.patientGender || "Female"
+  );
   const [notes, setNotes] = useState(initialData?.notes || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,181 +94,168 @@ export function CaseForm({ initialData, isEdit = false }: { initialData?: Partia
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <Link href="/cases">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Case Logbook
-          </Button>
-        </Link>
-      </div>
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <Link
+        href="/cases"
+        className={buttonStyles({ variant: "ghost", size: "sm", className: "-ml-3" })}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Case Logbook
+      </Link>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-bold">
-            {isEdit ? "Edit Surgical Case Entry" : "Log New Surgical Case"}
-          </CardTitle>
+          <CardTitle>{isEdit ? "Edit Surgical Case Entry" : "Log New Surgical Case"}</CardTitle>
           <CardDescription>
             Record comprehensive procedure details for your accredited surgical logbook.
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
-          {errorMsg && (
-            <div className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
-              <p className="text-sm font-medium">{errorMsg}</p>
-            </div>
-          )}
+        <CardContent className="space-y-5">
+          {errorMsg && <Alert tone="error" title="Could not save this case">{errorMsg}</Alert>}
 
           {successMsg && (
-            <div className="mb-6 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              <div>
-                <p className="font-semibold text-sm">
-                  {isEdit ? "Case updated successfully!" : "New case logged successfully!"}
-                </p>
-                <p className="text-xs">Redirecting to case logbook...</p>
-              </div>
-            </div>
+            <Alert
+              tone="success"
+              title={isEdit ? "Case updated successfully" : "New case logged successfully"}
+            >
+              Redirecting to your case logbook…
+            </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Grid 1: Date & Procedure Name */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Date of Surgery <span className="text-rose-500">*</span>
-                </label>
-                <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Procedure Name <span className="text-rose-500">*</span>
-                </label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Date of Surgery" htmlFor="case-date" required>
                 <Input
+                  id="case-date"
+                  type="date"
+                  required
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </Field>
+
+              <Field label="Procedure Name" htmlFor="case-procedure" required>
+                <Input
+                  id="case-procedure"
                   type="text"
                   required
                   placeholder="e.g. Laparoscopic Cholecystectomy"
                   value={procedureName}
                   onChange={(e) => setProcedureName(e.target.value)}
                 />
-              </div>
+              </Field>
             </div>
 
-            {/* Grid 2: Category & Role */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Procedure Category <span className="text-rose-500">*</span>
-                </label>
-                <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Procedure Category" htmlFor="case-category-select" required>
+                <Select
+                  id="case-category-select"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
                   {INITIAL_CATEGORIES.map((cat) => (
                     <option key={cat.id} value={cat.name}>
                       {cat.name}
                     </option>
                   ))}
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Surgical Role <span className="text-rose-500">*</span>
-                </label>
-                <Select value={role} onChange={(e) => setRole(e.target.value as any)}>
+              <Field label="Surgical Role" htmlFor="case-role-select" required>
+                <Select
+                  id="case-role-select"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as typeof role)}
+                >
                   <option value="Observed">Observed</option>
                   <option value="Assisted">Assisted</option>
                   <option value="Performed">Performed (Primary Surgeon)</option>
                 </Select>
-              </div>
+              </Field>
             </div>
 
-            {/* Grid 3: Consultant & Hospital */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Consultant / Supervisor Name <span className="text-rose-500">*</span>
-                </label>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Consultant / Supervisor Name" htmlFor="case-supervisor" required>
                 <Input
+                  id="case-supervisor"
                   type="text"
                   required
                   placeholder="e.g. Dr. Sarah Jenkins, FACS"
                   value={supervisorName}
                   onChange={(e) => setSupervisorName(e.target.value)}
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Hospital / Ward / OR <span className="text-rose-500">*</span>
-                </label>
+              <Field label="Hospital / Ward / OR" htmlFor="case-hospital" required>
                 <Input
+                  id="case-hospital"
                   type="text"
                   required
                   placeholder="e.g. St. Jude Memorial Hospital / OR 4"
                   value={hospitalWard}
                   onChange={(e) => setHospitalWard(e.target.value)}
                 />
-              </div>
+              </Field>
             </div>
 
-            {/* Grid 4: Complexity, Patient Age, Gender */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Complexity</label>
-                <Select value={complexity} onChange={(e) => setComplexity(e.target.value as any)}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <Field label="Complexity" htmlFor="case-complexity">
+                <Select
+                  id="case-complexity"
+                  value={complexity}
+                  onChange={(e) => setComplexity(e.target.value as typeof complexity)}
+                >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
                 </Select>
-              </div>
+              </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Patient Age</label>
+              <Field label="Patient Age" htmlFor="case-age">
                 <Input
+                  id="case-age"
                   type="number"
+                  min={0}
+                  max={130}
                   placeholder="e.g. 45"
                   value={patientAge}
                   onChange={(e) => setPatientAge(e.target.value === "" ? "" : Number(e.target.value))}
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Patient Gender</label>
-                <Select value={patientGender} onChange={(e) => setPatientGender(e.target.value as any)}>
+              <Field label="Patient Gender" htmlFor="case-gender">
+                <Select
+                  id="case-gender"
+                  value={patientGender}
+                  onChange={(e) => setPatientGender(e.target.value as typeof patientGender)}
+                >
                   <option value="Female">Female</option>
                   <option value="Male">Male</option>
                   <option value="Other">Other</option>
                 </Select>
-              </div>
+              </Field>
             </div>
 
-            {/* Grid 5: Operative Notes */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Operative & Reflection Notes
-              </label>
-              <textarea
+            <Field label="Operative & Reflection Notes" htmlFor="case-notes">
+              <Textarea
+                id="case-notes"
                 rows={4}
-                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                placeholder="Key operative steps, anatomical landmarks, suture material, or intraoperative findings..."
+                placeholder="Key operative steps, anatomical landmarks, suture material, or intraoperative findings…"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
-            </div>
+            </Field>
 
-            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
-              <Link href="/cases">
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
+              <Link href="/cases" className={buttonStyles({ variant: "outline", size: "md" })}>
+                Cancel
               </Link>
-              <Button type="submit" variant="primary" disabled={loading} className="shadow-sm gap-1.5">
+              <Button type="submit" disabled={loading}>
                 {loading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving…
                   </>
                 ) : (
                   <>

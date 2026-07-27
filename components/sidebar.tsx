@@ -11,29 +11,72 @@ import {
   Target,
   Bot,
   LogOut,
-  Stethoscope,
-  ChevronRight,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Brand } from "@/components/brand";
 import { createClient } from "@/lib/supabase/client";
 
-const baseNavItems = [
+type NavItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  /** Sub-routes that should also light this item up. */
+  activePaths?: string[];
+  /** Sub-routes that must NOT light this item up (they own their own entry). */
+  exceptPaths?: string[];
+};
+
+const baseNavItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Case Logbook", href: "/cases", icon: ClipboardList },
+  {
+    name: "Case Logbook",
+    href: "/cases",
+    icon: ClipboardList,
+    // /cases/:id/edit belongs to the logbook; /cases/new has its own entry.
+    activePaths: ["/cases"],
+    exceptPaths: ["/cases/new"],
+  },
   { name: "Log New Case", href: "/cases/new", icon: PlusCircle },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Target Settings", href: "/targets", icon: Target },
-  { name: "AI Study Assistant", href: "/ai-assistant", icon: Bot, badge: "AI" },
+  { name: "Analytics", href: "/analytics", icon: BarChart3, activePaths: ["/analytics"] },
+  { name: "Target Settings", href: "/targets", icon: Target, activePaths: ["/targets"] },
+  {
+    name: "AI Study Assistant",
+    href: "/ai-assistant",
+    icon: Bot,
+    badge: "AI",
+    activePaths: ["/ai-assistant"],
+  },
 ];
 
-export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
-  const pathname = usePathname();
+/**
+ * Exactly one nav item is active for any given path. `/cases/new` no longer
+ * lights up both "Case Logbook" and "Log New Case" the way the previous bare
+ * `startsWith` check did.
+ */
+function isItemActive(item: NavItem, pathname: string) {
+  if (pathname === item.href) return true;
+  if (item.exceptPaths?.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    return false;
+  }
+  return (item.activePaths ?? []).some((path) => pathname.startsWith(`${path}/`));
+}
+
+export function Sidebar({
+  className,
+  onNavigate,
+}: {
+  className?: string;
+  onNavigate?: () => void;
+}) {
+  const pathname = usePathname() || "";
   const router = useRouter();
   const [userName, setUserName] = useState<string>("Surgical Resident");
   const [userEmail, setUserEmail] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -41,7 +84,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserEmail(user.email || "");
-        
+
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, is_admin")
@@ -60,6 +103,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
   }, []);
 
   const handleLogout = async () => {
+    setLoggingOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -72,94 +116,87 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
     return (parts[0]?.[0] || "DR").toUpperCase();
   };
 
-  const navItems = [...baseNavItems];
+  const navItems: NavItem[] = [...baseNavItems];
   if (isAdmin) {
     navItems.push({
       name: "Admin Panel",
       href: "/admin",
       icon: ShieldCheck,
       badge: "Admin",
+      activePaths: ["/admin"],
     });
   }
 
   return (
-    <aside
+    <nav
+      aria-label="Main navigation"
       className={cn(
-        "flex flex-col h-full bg-white dark:bg-slate-800/95 border-r border-slate-200 dark:border-slate-800 w-64 p-4 transition-colors",
+        "flex h-full w-64 flex-col border-r border-slate-200 bg-white transition-colors dark:border-slate-700 dark:bg-slate-800",
         className
       )}
     >
-      {/* Brand Header */}
-      <div className="flex items-center gap-3 px-3 py-3 mb-6 border-b border-slate-100 dark:border-slate-700/60">
-        <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center shadow-md">
-          <Stethoscope className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="font-bold text-lg text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
-            SurgLog
-            <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
-              {isAdmin ? "Admin" : "Pro"}
-            </span>
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Surgical Case Logbook</p>
-        </div>
+      {/* Brand block is exactly navbar height (h-16) so the sidebar header and
+          the top bar share one horizontal rule across the whole shell. */}
+      <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-4 dark:border-slate-700">
+        <Brand tagline="Surgical Case Logbook" />
       </div>
 
-      {/* Nav Links */}
-      <nav className="flex-1 space-y-1.5 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
         {navItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname?.startsWith(item.href) && item.href !== "/cases/new");
+          const isActive = isItemActive(item, pathname);
           const Icon = item.icon;
           return (
             <Link
               key={item.href}
               href={item.href}
-              onClick={onClose}
+              onClick={onNavigate}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all group",
+                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-800",
                 isActive
-                  ? "bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 font-semibold shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-100"
+                  ? "bg-teal-50 font-semibold text-teal-700 dark:bg-teal-950/60 dark:text-teal-300"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
               )}
             >
               <Icon
                 className={cn(
-                  "h-5 w-5 transition-colors",
+                  "h-5 w-5 shrink-0 transition-colors",
                   isActive
                     ? "text-teal-600 dark:text-teal-400"
-                    : "text-slate-400 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+                    : "text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300"
                 )}
               />
-              <span className="flex-1">{item.name}</span>
+              <span className="min-w-0 flex-1 truncate">{item.name}</span>
               {item.badge && (
                 <span
                   className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white",
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
                     item.badge === "Admin"
-                      ? "bg-amber-500 dark:bg-amber-400 dark:text-slate-950"
-                      : "bg-teal-600 dark:bg-teal-400 dark:text-slate-900"
+                      ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-slate-900"
+                      : "bg-teal-600 text-white dark:bg-teal-400 dark:text-slate-900"
                   )}
                 >
                   {item.badge}
                 </span>
               )}
-              {isActive && <ChevronRight className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
             </Link>
           );
         })}
-      </nav>
+      </div>
 
-      {/* User Info & Logout Footer */}
-      <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-700/60 space-y-3">
-        <div className="flex items-center gap-3 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/60">
-          <div className="h-9 w-9 rounded-full bg-teal-600 text-white font-semibold text-xs flex items-center justify-center flex-shrink-0">
+      <div className="shrink-0 space-y-3 border-t border-slate-200 p-3 dark:border-slate-700">
+        <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-900/60">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-semibold text-white dark:bg-teal-500 dark:text-slate-900">
             {getInitials(userName)}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{userName}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{userEmail || "Logged in"}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+              {userName}
+            </p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+              {userEmail || "Logged in"}
+            </p>
           </div>
         </div>
 
@@ -167,12 +204,13 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
           variant="outline"
           size="sm"
           onClick={handleLogout}
-          className="w-full justify-start text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-slate-200 dark:border-slate-700 cursor-pointer"
+          disabled={loggingOut}
+          className="w-full justify-start hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-800 dark:hover:bg-rose-950/40 dark:hover:text-rose-300"
         >
-          <LogOut className="h-4 w-4 mr-2" />
-          Log Out
+          <LogOut className="h-4 w-4" />
+          {loggingOut ? "Logging out…" : "Log Out"}
         </Button>
       </div>
-    </aside>
+    </nav>
   );
 }

@@ -4,7 +4,8 @@ import { useState, useEffect, use } from "react";
 import { CaseForm } from "@/components/case-form";
 import { SurgicalCase } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
-import { Loader2 } from "lucide-react";
+import { LoadingState } from "@/components/ui/states";
+import { Card } from "@/components/ui/card";
 
 export default function EditCasePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -42,10 +43,13 @@ export default function EditCasePage({ params }: { params: Promise<{ id: string 
   }, [resolvedParams.id]);
 
   if (loading) {
+    // Same max-width as the form it replaces, so the card does not jump
+    // sideways or resize when the data arrives.
     return (
-      <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-600 dark:text-teal-400" />
-        <p className="text-sm font-medium">Loading case details from Supabase...</p>
+      <div className="mx-auto w-full max-w-3xl">
+        <Card>
+          <LoadingState label="Loading case details…" minHeight="min-h-[420px]" />
+        </Card>
       </div>
     );
   }

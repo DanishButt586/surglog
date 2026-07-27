@@ -2,58 +2,97 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+/* ---------------------------------------------------------------------------
+   SurgLog Design Tokens
+   ---------------------------------------------------------------------------
+   Spacing scale (used identically on every page):
+     - Page sections .............. space-y-6            (24px)
+     - Card grid gutters .......... gap-4 sm:gap-6       (16 / 24px)
+     - Card internal padding ...... p-5 sm:p-6           (20 / 24px)
+     - Form field stack ........... space-y-4            (16px)
+     - Label -> control gap ....... space-y-1.5          (6px)
+     - Inline control gutters ..... gap-2 / gap-3        (8 / 12px)
+
+   Type scale:
+     - Page title (h1) ............ text-2xl font-bold tracking-tight
+     - Section / card title (h2/h3) text-lg font-semibold tracking-tight
+     - Sub-card title ............. text-base font-semibold
+     - Body ....................... text-sm leading-relaxed
+     - Meta / caption ............. text-xs
+     - Stat number ................ text-3xl font-bold tabular-nums
+
+   Control heights:
+     - xs 32px | sm 36px | md 40px (default) | lg 44px
+--------------------------------------------------------------------------- */
+
 @layer base {
   :root {
-    --background: #F8FAFC; /* slate-50 */
-    --foreground: #1E293B; /* slate-800 */
-    --card: #FFFFFF; /* white */
-    --card-foreground: #1E293B;
-    --popover: #FFFFFF;
-    --popover-foreground: #1E293B;
-    --primary: #0D9488; /* teal-600 */
-    --primary-foreground: #FFFFFF;
-    --secondary: #F1F5F9; /* slate-100 */
-    --secondary-foreground: #1E293B;
-    --muted: #F1F5F9;
-    --muted-foreground: #64748B; /* slate-500 */
-    --accent: #CCFBF1; /* teal-100 */
-    --accent-foreground: #0F766E; /* teal-700 */
-    --destructive: #F43F5E; /* rose-500 */
-    --destructive-foreground: #FFFFFF;
-    --success: #10B981; /* emerald-500 */
-    --success-foreground: #FFFFFF;
-    --warning: #F59E0B; /* amber-500 */
-    --warning-foreground: #FFFFFF;
-    --border: #E2E8F0; /* slate-200 */
-    --input: #E2E8F0;
-    --ring: #0D9488;
+    --background: #f8fafc; /* slate-50 */
+    --foreground: #1e293b; /* slate-800 */
+    --card: #ffffff;
+    --card-foreground: #1e293b;
+    --popover: #ffffff;
+    --popover-foreground: #1e293b;
+    --primary: #0d9488; /* teal-600 */
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9; /* slate-100 */
+    --secondary-foreground: #1e293b;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b; /* slate-500 */
+    --accent: #ccfbf1; /* teal-100 */
+    --accent-foreground: #0f766e; /* teal-700 */
+    --destructive: #f43f5e; /* rose-500 */
+    --destructive-foreground: #ffffff;
+    --success: #10b981; /* emerald-500 */
+    --success-foreground: #ffffff;
+    --warning: #f59e0b; /* amber-500 */
+    --warning-foreground: #ffffff;
+    --border: #e2e8f0; /* slate-200 */
+    --input: #e2e8f0;
+    --ring: #0d9488;
     --radius: 0.75rem; /* rounded-xl */
+
+    /* Chart tokens — consumed by Recharts so charts follow the active theme */
+    --chart-grid: #cbd5e1; /* slate-300 */
+    --chart-axis: #64748b; /* slate-500 */
+    --chart-1: #0d9488; /* teal-600  — Performed / Logged */
+    --chart-2: #10b981; /* emerald-500 — Assisted */
+    --chart-3: #f59e0b; /* amber-500 — Observed */
+    --chart-muted: #94a3b8; /* slate-400 — Target reference bars */
   }
 
   .dark {
-    --background: #0F172A; /* slate-900 */
-    --foreground: #F8FAFC; /* slate-50 */
-    --card: #1E293B; /* slate-800 */
-    --card-foreground: #F8FAFC;
-    --popover: #1E293B;
-    --popover-foreground: #F8FAFC;
-    --primary: #2DD4BF; /* teal-400 */
-    --primary-foreground: #0F172A;
+    --background: #0f172a; /* slate-900 */
+    --foreground: #f8fafc; /* slate-50 */
+    --card: #1e293b; /* slate-800 */
+    --card-foreground: #f8fafc;
+    --popover: #1e293b;
+    --popover-foreground: #f8fafc;
+    --primary: #2dd4bf; /* teal-400 */
+    --primary-foreground: #0f172a;
     --secondary: #334155; /* slate-700 */
-    --secondary-foreground: #F8FAFC;
+    --secondary-foreground: #f8fafc;
     --muted: #334155;
-    --muted-foreground: #94A3B8; /* slate-400 */
-    --accent: #115E59; /* teal-800 */
-    --accent-foreground: #2DD4BF;
-    --destructive: #F43F5E;
-    --destructive-foreground: #FFFFFF;
-    --success: #10B981;
-    --success-foreground: #FFFFFF;
-    --warning: #F59E0B;
-    --warning-foreground: #FFFFFF;
+    --muted-foreground: #94a3b8; /* slate-400 */
+    --accent: #115e59; /* teal-800 */
+    --accent-foreground: #2dd4bf;
+    --destructive: #f43f5e;
+    --destructive-foreground: #ffffff;
+    --success: #10b981;
+    --success-foreground: #ffffff;
+    --warning: #f59e0b;
+    --warning-foreground: #ffffff;
     --border: #334155;
     --input: #334155;
-    --ring: #2DD4BF;
+    --ring: #2dd4bf;
+
+    /* Lighter, higher-contrast chart colors for dark surfaces */
+    --chart-grid: #475569; /* slate-600 */
+    --chart-axis: #94a3b8; /* slate-400 */
+    --chart-1: #2dd4bf; /* teal-400 */
+    --chart-2: #34d399; /* emerald-400 */
+    --chart-3: #fbbf24; /* amber-400 */
+    --chart-muted: #64748b; /* slate-500 */
   }
 
   * {
@@ -63,8 +102,8 @@
   html.dark body,
   body.dark,
   .dark body {
-    background-color: #0F172A !important;
-    color: #F8FAFC !important;
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
   }
 
   body {
@@ -73,6 +112,17 @@
     font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     min-height: 100vh;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Native form controls should follow the theme (date pickers, selects,
+     autofill and scrollbars all read this). Without it the date input's
+     calendar glyph stays black-on-dark and is invisible in dark mode. */
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 }
 
@@ -87,11 +137,95 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--muted-foreground);
+  background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
   border-radius: 9999px;
-  opacity: 0.3;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+}
+
+/* Recharts: force axis/legend text to follow the theme. Recharts inlines a
+   hard-coded #666 fill on tick + legend text, which is unreadable on dark. */
+.recharts-cartesian-axis-tick text,
+.recharts-legend-item-text,
+.recharts-label {
+  fill: var(--chart-axis) !important;
+  color: var(--chart-axis) !important;
+  font-size: 11px;
+}
+
+.recharts-cartesian-grid line {
+  stroke: var(--chart-grid);
+}
+
+.recharts-surface:focus,
+.recharts-wrapper:focus {
+  outline: none;
+}
+
+/* Toast / drawer motion (no tailwindcss-animate plugin in this project) */
+@keyframes surglog-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes surglog-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes surglog-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes surglog-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-toast-in {
+  animation: surglog-toast-in 0.22s ease-out;
+}
+
+.animate-fade-in {
+  animation: surglog-fade-in 0.18s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: surglog-slide-in-left 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-scale-in {
+  animation: surglog-scale-in 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-toast-in,
+  .animate-fade-in,
+  .animate-slide-in-left,
+  .animate-scale-in {
+    animation: none;
+  }
 }

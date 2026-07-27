@@ -10,20 +10,22 @@ import {
   Calendar,
   AlertTriangle,
   X,
-  Loader2,
   Sparkles,
   ClipboardList,
   Download,
   FileText,
-  CheckCircle2,
-  Clock,
   MessageSquare,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import { Field } from "@/components/ui/field";
+import { RoleBadge, ApprovalBadge } from "@/components/ui/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { TableWrapper, TableHead, TableBody, TableRow, TH, TD } from "@/components/ui/table";
+import { LoadingState, EmptyState, Spinner } from "@/components/ui/states";
+import { Modal } from "@/components/ui/modal";
+import { PageHeader } from "@/components/page-header";
 import { INITIAL_CASES, INITIAL_CATEGORIES, SurgicalCase } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { exportCasesToCSV, exportCasesToPDF } from "@/lib/export-utils";
@@ -35,7 +37,7 @@ export default function CaseListPage() {
   const [userName, setUserName] = useState("Surgical Resident");
   const [userEmail, setUserEmail] = useState("");
 
-  // Filters state
+  // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
@@ -63,7 +65,6 @@ export default function CaseListPage() {
         if (profile?.full_name) setUserName(profile.full_name);
       }
 
-      // Fetch cases
       const { data, error } = await supabase
         .from("cases")
         .select("*")
@@ -89,7 +90,6 @@ export default function CaseListPage() {
         setCasesList(mapped);
       }
 
-      // Fetch targets/categories
       const { data: targetsData } = await supabase
         .from("targets")
         .select("category")
@@ -132,6 +132,8 @@ export default function CaseListPage() {
 
       await supabase.from("cases").insert(samples);
       await fetchCases();
+    } else {
+      setLoading(false);
     }
   };
 
@@ -147,7 +149,6 @@ export default function CaseListPage() {
     setDeleteTargetId(null);
   };
 
-  // Filter cases logic against search, role, category, and date range
   const filteredCases = casesList.filter((c) => {
     const matchesSearch =
       c.procedureName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -164,169 +165,184 @@ export default function CaseListPage() {
     return matchesSearch && matchesRole && matchesCategory && matchesDate;
   });
 
-  // Calculate Category Totals for PDF Summary
   const categoryTotals: Record<string, number> = {};
   filteredCases.forEach((c) => {
     categoryTotals[c.category] = (categoryTotals[c.category] || 0) + 1;
   });
 
-  const handleExportCSV = () => {
-    exportCasesToCSV(filteredCases, userName);
+  const handleExportCSV = () => exportCasesToCSV(filteredCases, userName);
+  const handleExportPDF = () => exportCasesToPDF(filteredCases, userName, userEmail, categoryTotals);
+
+  const hasActiveFilters =
+    Boolean(searchQuery) ||
+    roleFilter !== "All" ||
+    categoryFilter !== "All" ||
+    Boolean(startDate) ||
+    Boolean(endDate);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("All");
+    setCategoryFilter("All");
+    setStartDate("");
+    setEndDate("");
   };
 
-  const handleExportPDF = () => {
-    exportCasesToPDF(filteredCases, userName, userEmail, categoryTotals);
-  };
+  const emptyState = (
+    <EmptyState
+      icon={ClipboardList}
+      title={hasActiveFilters ? "No cases match your filters" : "No cases logged yet"}
+      description={
+        hasActiveFilters
+          ? "Try clearing or adjusting your search criteria and date range."
+          : "Add your first surgical procedure entry to begin tracking targets and analytics."
+      }
+      minHeight="min-h-[280px]"
+      action={
+        hasActiveFilters ? (
+          <Button variant="outline" size="sm" onClick={clearFilters}>
+            <X className="h-4 w-4" />
+            Clear Filters
+          </Button>
+        ) : (
+          <>
+            <Link href="/cases/new" className={buttonStyles({ size: "sm" })}>
+              <Plus className="h-4 w-4" />
+              Add Your First Case
+            </Link>
+            <Button variant="outline" size="sm" onClick={handleSeedSampleCases}>
+              <Sparkles className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              Load Sample Cases
+            </Button>
+          </>
+        )
+      }
+    />
+  );
 
-  const roleBadges = {
-    Performed: "teal",
-    Assisted: "success",
-    Observed: "warning",
-  } as const;
-
-  const getApprovalBadge = (status?: string) => {
-    switch (status) {
-      case "approved":
-        return (
-          <Badge variant="success" className="gap-1 text-[10px]">
-            <CheckCircle2 className="h-3 w-3" /> Approved
-          </Badge>
-        );
-      case "needs_review":
-        return (
-          <Badge variant="destructive" className="gap-1 text-[10px]">
-            <AlertTriangle className="h-3 w-3" /> Needs Review
-          </Badge>
-        );
-      default:
-        return (
-          <Badge variant="warning" className="gap-1 text-[10px]">
-            <Clock className="h-3 w-3" /> Pending Review
-          </Badge>
-        );
-    }
-  };
-
-  const hasActiveFilters = searchQuery || roleFilter !== "All" || categoryFilter !== "All" || startDate || endDate;
+  const consultantNote = (comment: string) => (
+    <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200">
+      <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <span>
+        <strong>Consultant note:</strong> {comment}
+      </span>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Surgical Case Logbook
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            View, filter, search, and export your logged operative cases with consultant audit status.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportCSV}
-            disabled={filteredCases.length === 0}
-            className="gap-1.5 text-xs font-semibold"
-          >
-            <Download className="h-4 w-4" /> Export CSV
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportPDF}
-            disabled={filteredCases.length === 0}
-            className="gap-1.5 text-xs font-semibold border-teal-500 text-teal-700 dark:text-teal-300"
-          >
-            <FileText className="h-4 w-4" /> Export Board PDF
-          </Button>
-
-          {casesList.length === 0 && !loading && (
+      <PageHeader
+        title="Surgical Case Logbook"
+        description="View, filter, search, and export your logged operative cases with consultant audit status."
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleSeedSampleCases}
-              className="gap-1.5"
+              onClick={handleExportCSV}
+              disabled={filteredCases.length === 0}
             >
-              <Sparkles className="h-4 w-4 text-amber-500" /> Sample Cases
+              <Download className="h-4 w-4" />
+              Export CSV
             </Button>
-          )}
 
-          <Link href="/cases/new">
-            <Button variant="primary" size="sm" className="shadow-sm gap-1.5">
-              <Plus className="h-4 w-4" /> Log Case
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPDF}
+              disabled={filteredCases.length === 0}
+            >
+              <FileText className="h-4 w-4" />
+              Export PDF
             </Button>
-          </Link>
-        </div>
-      </div>
 
-      {/* Filter and Search Bar */}
+            <Link href="/cases/new" className={buttonStyles({ size: "sm" })}>
+              <Plus className="h-4 w-4" />
+              Log Case
+            </Link>
+          </>
+        }
+      />
+
+      {/* Filters */}
       <Card>
-        <CardContent className="p-4 sm:p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            <div className="sm:col-span-4 relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <Input
-                type="text"
-                placeholder="Search procedure, supervisor, or hospital..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+        <CardContent className="space-y-4 pt-5 sm:pt-6">
+          {/* 6-column track at xl keeps every control usable: search and the
+              date pair take two columns each, so a native date input never
+              collapses below its ~150px intrinsic width. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <Field label="Search" htmlFor="case-search" className="sm:col-span-2">
+              <div className="relative">
+                {/* inset-y-0 + flex centers the glyph against the 40px control
+                    height regardless of icon size. */}
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex w-9 items-center justify-center text-slate-400">
+                  <Search className="h-4 w-4" />
+                </span>
+                <Input
+                  id="case-search"
+                  type="search"
+                  placeholder="Procedure, supervisor, or hospital…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </Field>
 
-            <div className="sm:col-span-2">
-              <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <Field label="Role" htmlFor="case-role">
+              <Select id="case-role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
                 <option value="All">All Roles</option>
                 <option value="Performed">Performed</option>
                 <option value="Assisted">Assisted</option>
                 <option value="Observed">Observed</option>
               </Select>
-            </div>
+            </Field>
 
-            <div className="sm:col-span-3">
-              <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                <option value="All">All Procedure Categories</option>
+            <Field label="Category" htmlFor="case-category">
+              <Select
+                id="case-category"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="All">All Categories</option>
                 {categoriesList.map((cat, i) => (
                   <option key={i} value={cat}>
                     {cat}
                   </option>
                 ))}
               </Select>
-            </div>
+            </Field>
 
-            <div className="sm:col-span-3 flex items-center gap-2">
-              <Input
-                type="date"
-                title="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="text-xs"
-              />
-              <span className="text-slate-400 text-xs">-</span>
-              <Input
-                type="date"
-                title="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="text-xs"
-              />
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+              <Field label="From" htmlFor="case-start">
+                <Input
+                  id="case-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </Field>
+
+              <Field label="To" htmlFor="case-end">
+                <Input
+                  id="case-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </Field>
             </div>
           </div>
 
           {hasActiveFilters && (
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span>Showing {filteredCases.length} of {casesList.length} total cases</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              <span>
+                Showing {filteredCases.length} of {casesList.length} total cases
+              </span>
               <button
-                onClick={() => {
-                  setSearchQuery("");
-                  setRoleFilter("All");
-                  setCategoryFilter("All");
-                  setStartDate("");
-                  setEndDate("");
-                }}
-                className="text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                type="button"
+                onClick={clearFilters}
+                className="flex cursor-pointer items-center gap-1 rounded font-medium text-teal-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 dark:text-teal-400"
               >
                 <X className="h-3 w-3" /> Clear Filters
               </button>
@@ -335,164 +351,206 @@ export default function CaseListPage() {
         </CardContent>
       </Card>
 
-      {/* Case Data Table */}
+      {/* Case data */}
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-teal-400" />
-              <span>Fetching your logged surgical cases from Supabase...</span>
-            </div>
-          ) : (
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="bg-slate-100/70 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="p-4 pl-6">Date</th>
-                  <th className="p-4">Procedure & Category</th>
-                  <th className="p-4">Role & Status</th>
-                  <th className="p-4">Supervisor & Hospital</th>
-                  <th className="p-4 pr-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredCases.length > 0 ? (
-                  filteredCases.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors"
-                    >
-                      <td className="p-4 pl-6 font-medium whitespace-nowrap text-slate-700 dark:text-slate-300">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-slate-400" />
-                          <span>{item.date}</span>
-                        </div>
-                      </td>
+        {loading ? (
+          <LoadingState label="Fetching your logged surgical cases…" minHeight="min-h-[280px]" />
+        ) : filteredCases.length === 0 ? (
+          emptyState
+        ) : (
+          <>
+            {/* Desktop / tablet table */}
+            <div className="hidden md:block">
+              <TableWrapper minWidth="min-w-[880px]">
+                <TableHead>
+                  <tr>
+                    <TH>Date</TH>
+                    <TH>Procedure &amp; Category</TH>
+                    <TH>Role &amp; Status</TH>
+                    <TH>Supervisor &amp; Hospital</TH>
+                    <TH align="right">Actions</TH>
+                  </tr>
+                </TableHead>
+                <TableBody>
+                  {filteredCases.map((item) => (
+                    <TableRow key={item.id}>
+                      <TD className="whitespace-nowrap font-medium text-slate-700 dark:text-slate-300">
+                        <span className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+                          {item.date}
+                        </span>
+                      </TD>
 
-                      <td className="p-4">
-                        <div>
-                          <p className="font-semibold text-slate-900 dark:text-white">
-                            {item.procedureName}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{item.category}</p>
-                          {item.adminComment && (
-                            <div className="mt-1.5 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-1.5 max-w-sm">
-                              <MessageSquare className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
-                              <span><strong>Consultant Note:</strong> {item.adminComment}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                      <TD>
+                        <p className="font-semibold text-slate-900 dark:text-white">
+                          {item.procedureName}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                          {item.category}
+                        </p>
+                        {item.adminComment && (
+                          <div className="max-w-sm">{consultantNote(item.adminComment)}</div>
+                        )}
+                      </TD>
 
-                      <td className="p-4 whitespace-nowrap space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <Badge variant={roleBadges[item.role] || "default"}>{item.role}</Badge>
+                      <TD className="whitespace-nowrap">
+                        <div className="flex flex-col items-start gap-1.5">
+                          <RoleBadge role={item.role} />
+                          <ApprovalBadge status={item.approvalStatus} />
                         </div>
-                        <div>
-                          {getApprovalBadge(item.approvalStatus)}
-                        </div>
-                      </td>
+                      </TD>
 
-                      <td className="p-4 max-w-xs truncate">
-                        <p className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                      <TD className="max-w-[16rem]">
+                        <p className="truncate font-medium text-slate-800 dark:text-slate-200">
                           {item.supervisorName}
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
                           {item.hospitalWard}
                         </p>
-                      </td>
+                      </TD>
 
-                      <td className="p-4 pr-6 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Link href={`/cases/${item.id}/edit`}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400"
-                              aria-label="Edit Case"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                      <TD align="right" className="whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/cases/${item.id}/edit`}
+                            aria-label={`Edit ${item.procedureName}`}
+                            className={buttonStyles({
+                              variant: "ghost",
+                              size: "icon-sm",
+                              className: "hover:text-teal-600 dark:hover:text-teal-400",
+                            })}
+                          >
+                            <Pencil className="h-4 w-4" />
                           </Link>
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
                             onClick={() => setDeleteTargetId(item.id)}
-                            className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                            aria-label="Delete Case"
+                            className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                            aria-label={`Delete ${item.procedureName}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="p-16 text-center text-slate-500 dark:text-slate-400">
-                      <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
-                        <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                          <ClipboardList className="h-6 w-6" />
-                        </div>
-                        <p className="text-base font-bold text-slate-800 dark:text-slate-200">
-                          {hasActiveFilters ? "No cases match your filters" : "No cases logged yet"}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                          {hasActiveFilters
-                            ? "Try clearing or adjusting your search criteria and date range."
-                            : "Add your first surgical procedure entry to begin tracking targets and analytics."}
-                        </p>
+                      </TD>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </TableWrapper>
+            </div>
 
-                        {!hasActiveFilters && (
-                          <div className="flex items-center gap-3 pt-2">
-                            <Link href="/cases/new">
-                              <Button variant="primary" size="sm">
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add Your First Case
-                              </Button>
-                            </Link>
-                            <Button variant="outline" size="sm" onClick={handleSeedSampleCases}>
-                              <Sparkles className="h-4 w-4 mr-1 text-teal-600 dark:text-teal-400" />
-                              Load Sample Cases
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+            {/* Mobile card list — same data, no sideways scrolling */}
+            <ul className="divide-y divide-slate-100 md:hidden dark:divide-slate-700/60">
+              {filteredCases.map((item) => (
+                <li key={item.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {item.procedureName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {item.category}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Link
+                        href={`/cases/${item.id}/edit`}
+                        aria-label={`Edit ${item.procedureName}`}
+                        className={buttonStyles({ variant: "ghost", size: "icon-sm" })}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setDeleteTargetId(item.id)}
+                        className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                        aria-label={`Delete ${item.procedureName}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                    <RoleBadge role={item.role} />
+                    <ApprovalBadge status={item.approvalStatus} />
+                  </div>
+
+                  <dl className="mt-3 space-y-1 text-xs">
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-slate-500 dark:text-slate-400">Date</dt>
+                      <dd className="min-w-0 text-slate-700 dark:text-slate-300">{item.date}</dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-slate-500 dark:text-slate-400">Supervisor</dt>
+                      <dd className="min-w-0 text-slate-700 dark:text-slate-300">
+                        {item.supervisorName}
+                      </dd>
+                    </div>
+                    <div className="flex gap-2">
+                      <dt className="w-20 shrink-0 text-slate-500 dark:text-slate-400">Location</dt>
+                      <dd className="min-w-0 text-slate-700 dark:text-slate-300">
+                        {item.hospitalWard}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {item.adminComment && consultantNote(item.adminComment)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </Card>
 
-      {/* Delete Modal Confirmation */}
-      {deleteTargetId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <Card className="w-full max-w-md p-6 space-y-4 shadow-xl">
-            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
-              <AlertTriangle className="h-6 w-6" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Delete Case Entry</h3>
-            </div>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Are you sure you want to remove this case from your Supabase logbook? This action cannot be undone.
-            </p>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button variant="outline" size="sm" disabled={deleting} onClick={() => setDeleteTargetId(null)}>
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={deleting}
-                onClick={() => handleDeleteCase(deleteTargetId)}
-              >
-                {deleting ? "Deleting..." : "Delete Case"}
-              </Button>
-            </div>
-          </Card>
+      {/* Delete confirmation */}
+      <Modal
+        open={Boolean(deleteTargetId)}
+        onClose={() => !deleting && setDeleteTargetId(null)}
+        labelledBy="delete-case-title"
+        describedBy="delete-case-description"
+      >
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+              <AlertTriangle className="h-5 w-5" />
+            </span>
+            <h2
+              id="delete-case-title"
+              className="text-lg font-semibold tracking-tight text-slate-900 dark:text-white"
+            >
+              Delete Case Entry
+            </h2>
+          </div>
+          <p
+            id="delete-case-description"
+            className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+          >
+            Are you sure you want to remove this case from your logbook? This action cannot be
+            undone.
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-1">
+            <Button variant="outline" disabled={deleting} onClick={() => setDeleteTargetId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => deleteTargetId && handleDeleteCase(deleteTargetId)}
+            >
+              {deleting ? (
+                <>
+                  <Spinner className="h-4 w-4 text-current" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete Case"
+              )}
+            </Button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

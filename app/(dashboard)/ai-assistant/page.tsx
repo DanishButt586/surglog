@@ -13,11 +13,12 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { INITIAL_CASES, SurgicalCase } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 
@@ -27,12 +28,23 @@ interface Message {
   content: string;
 }
 
+const QUICK_PROMPTS = [
+  { label: "Draft reflection note", prompt: "Draft a reflective learning note", icon: FileText },
+  { label: "Give me viva questions", prompt: "Give me viva exam questions", icon: HelpCircle },
+  { label: "Categorization advice", prompt: "How should I categorize this case?", icon: BookOpen },
+  {
+    label: "Anatomy & landmarks",
+    prompt: "Explain anatomical landmarks & surgical steps",
+    icon: Stethoscope,
+  },
+];
+
 function renderInlineBold(text: string) {
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={i} className="font-bold text-slate-900 dark:text-white">
+        <strong key={i} className="font-semibold text-slate-900 dark:text-white">
           {part.slice(2, -2)}
         </strong>
       );
@@ -53,22 +65,25 @@ function FormattedMarkdown({ content }: { content: string }) {
         if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
           const headerText = trimmed.replace(/^#+\s*/, "");
           return (
-            <h4 key={idx} className="font-bold text-base text-slate-900 dark:text-white mt-3 mb-1">
+            <h3
+              key={idx}
+              className="mb-1 mt-3 text-sm font-semibold tracking-tight text-slate-900 first:mt-0 dark:text-white"
+            >
               {renderInlineBold(headerText)}
-            </h4>
+            </h3>
           );
         }
 
         if (trimmed === "***" || trimmed === "---") {
-          return <hr key={idx} className="my-2 border-slate-200 dark:border-slate-700" />;
+          return <hr key={idx} className="my-2 border-slate-200 dark:border-slate-600" />;
         }
 
         if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
-          const bulletText = trimmed.replace(/^[\*\-]\s*/, "");
+          const bulletText = trimmed.replace(/^[*\-]\s*/, "");
           return (
-            <div key={idx} className="flex items-start gap-2 pl-2">
-              <span className="text-teal-600 dark:text-teal-400 font-bold">•</span>
-              <span className="flex-1">{renderInlineBold(bulletText)}</span>
+            <div key={idx} className="flex items-start gap-2">
+              <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-teal-600 dark:bg-teal-400" />
+              <span className="min-w-0 flex-1 leading-relaxed">{renderInlineBold(bulletText)}</span>
             </div>
           );
         }
@@ -99,7 +114,7 @@ export default function AiAssistantPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadUserCases() {
@@ -138,12 +153,11 @@ export default function AiAssistantPage() {
     loadUserCases();
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Scroll the message list itself rather than calling scrollIntoView, which
+  // also yanks the outer page scroller around.
   useEffect(() => {
-    scrollToBottom();
+    const node = scrollRef.current;
+    if (node) node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
   const selectedCase = cases.find((c) => c.id === selectedCaseId);
@@ -180,13 +194,10 @@ export default function AiAssistantPage() {
         throw new Error(data.error || "Failed to get response from AI assistant");
       }
 
-      const assistantReply: Message = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: data.reply,
-      };
-
-      setMessages((prev) => [...prev, assistantReply]);
+      setMessages((prev) => [
+        ...prev,
+        { id: `assistant-${Date.now()}`, role: "assistant", content: data.reply },
+      ]);
     } catch (err: any) {
       console.error("Chat error:", err);
       setErrorMsg(err?.message || "An error occurred while connecting to the AI assistant.");
@@ -204,34 +215,33 @@ export default function AiAssistantPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 flex flex-col h-[calc(100vh-7rem)]">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-teal-600 dark:text-teal-400" />
-            AI Logbook Assistant
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Study assistant powered by Google Gemini to help reflect, practice viva questions, and analyze logged cases.
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <PageHeader
+        title="AI Logbook Assistant"
+        icon={Sparkles}
+        description="Study assistant powered by Google Gemini to help reflect, practice viva questions, and analyze logged cases."
+      />
 
-      {/* Case Selector Dropdown */}
-      <Card className="p-4 bg-teal-50/50 dark:bg-slate-800/50 border-teal-200 dark:border-teal-900/50">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-2 text-teal-800 dark:text-teal-200 font-semibold text-xs whitespace-nowrap">
-            <Stethoscope className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-            <span>Select Logged Case for Context:</span>
-          </div>
+      {/* Case context selector */}
+      {/* Same accent-banner treatment and padding as the Admin Panel's
+          trainee banner, so the two context strips read as one component. */}
+      <Card className="border-teal-200 bg-teal-50/60 p-5 sm:p-6 dark:border-teal-900/60 dark:bg-teal-950/30">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label
+            htmlFor="case-context"
+            className="flex shrink-0 items-center gap-2 text-xs font-semibold text-teal-800 dark:text-teal-200"
+          >
+            <Stethoscope className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400" />
+            Case context:
+          </label>
 
           <Select
+            id="case-context"
             value={selectedCaseId}
             onChange={(e) => setSelectedCaseId(e.target.value)}
-            className="flex-1 text-xs"
+            className="min-w-0 flex-1"
           >
-            <option value="none">-- No specific case (General study query) --</option>
+            <option value="none">No specific case (general study query)</option>
             {cases.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.date} — {c.procedureName} ({c.category} • {c.role})
@@ -240,16 +250,18 @@ export default function AiAssistantPage() {
           </Select>
 
           {selectedCase && (
-            <Badge variant="teal" className="text-[10px] sm:self-center">
-              Active Context: {selectedCase.procedureName}
+            <Badge variant="teal" className="max-w-full self-start sm:self-center">
+              <span className="truncate">Active: {selectedCase.procedureName}</span>
             </Badge>
           )}
         </div>
       </Card>
 
-      {/* Chat Messages Container */}
-      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden shadow-xs border-slate-200 dark:border-slate-800">
-        <CardContent className="flex-1 p-4 overflow-y-auto space-y-4">
+      {/* Chat panel. A viewport-relative height keeps the composer on screen at
+          every breakpoint without hard-coding the navbar/padding offsets that
+          the previous calc() got wrong on every screen size. */}
+      <Card className="flex h-[65dvh] min-h-[26rem] flex-col overflow-hidden">
+        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
           {messages.map((msg) => {
             const isAssistant = msg.role === "assistant";
             return (
@@ -258,27 +270,27 @@ export default function AiAssistantPage() {
                 className={`flex gap-3 ${isAssistant ? "justify-start" : "justify-end"}`}
               >
                 {isAssistant && (
-                  <div className="h-8 w-8 rounded-lg bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-900">
                     <Bot className="h-5 w-5" />
                   </div>
                 )}
 
                 <div
-                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-sm leading-relaxed shadow-xs ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm sm:max-w-[75%] ${
                     isAssistant
-                      ? "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
-                      : "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950 font-medium"
+                      ? "border border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-100"
+                      : "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-900"
                   }`}
                 >
                   {isAssistant ? (
                     <FormattedMarkdown content={msg.content} />
                   ) : (
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
                   )}
                 </div>
 
                 {!isAssistant && (
-                  <div className="h-8 w-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
                     <User className="h-5 w-5" />
                   </div>
                 )}
@@ -286,97 +298,67 @@ export default function AiAssistantPage() {
             );
           })}
 
-          {/* Thinking Indicator */}
           {loading && (
-            <div className="flex gap-3 justify-start items-center">
-              <div className="h-8 w-8 rounded-lg bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-900">
                 <Bot className="h-5 w-5" />
               </div>
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 shadow-xs">
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-400">
                 <Loader2 className="h-4 w-4 animate-spin text-teal-600 dark:text-teal-400" />
-                <span>Thinking & analyzing surgical references...</span>
+                <span>Thinking &amp; analyzing surgical references…</span>
               </div>
             </div>
           )}
 
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+              <AlertCircle className="mt-px h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
               <span>{errorMsg}</span>
             </div>
           )}
-
-          <div ref={messagesEndRef} />
-        </CardContent>
-
-        {/* Quick Suggestion Chips */}
-        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleQuickSuggestion("Draft a reflective learning note")}
-            className="text-[11px] h-7 gap-1"
-          >
-            <FileText className="h-3 w-3 text-teal-600 dark:text-teal-400" />
-            Draft reflection note
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleQuickSuggestion("Give me viva exam questions")}
-            className="text-[11px] h-7 gap-1"
-          >
-            <HelpCircle className="h-3 w-3 text-amber-500" />
-            Give me viva questions
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleQuickSuggestion("How should I categorize this case?")}
-            className="text-[11px] h-7 gap-1"
-          >
-            <BookOpen className="h-3 w-3 text-emerald-500" />
-            Categorization advice
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleQuickSuggestion("Explain anatomical landmarks & surgical steps")}
-            className="text-[11px] h-7 gap-1"
-          >
-            <Stethoscope className="h-3 w-3 text-teal-600 dark:text-teal-400" />
-            Anatomy & landmarks
-          </Button>
         </div>
 
-        {/* Chat Input Form */}
+        {/* Quick prompts */}
+        <div className="flex shrink-0 flex-wrap gap-2 border-t border-slate-200 bg-slate-50/60 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/40">
+          {QUICK_PROMPTS.map(({ label, prompt, icon: Icon }) => (
+            <Button
+              key={label}
+              variant="outline"
+              size="xs"
+              disabled={loading}
+              onClick={() => handleQuickSuggestion(prompt)}
+            >
+              <Icon className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Composer */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSendMessage();
           }}
-          className="p-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-2 bg-white dark:bg-slate-800"
+          className="flex shrink-0 items-center gap-2 border-t border-slate-200 p-3 dark:border-slate-700"
         >
+          <label htmlFor="chat-input" className="sr-only">
+            Message the AI assistant
+          </label>
           <Input
+            id="chat-input"
             type="text"
             placeholder={
               selectedCase
-                ? `Ask about ${selectedCase.procedureName}...`
-                : "Ask about a surgical procedure, viva question, or reflective note..."
+                ? `Ask about ${selectedCase.procedureName}…`
+                : "Ask about a procedure, viva question, or reflective note…"
             }
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             disabled={loading}
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
-          <Button type="submit" variant="primary" disabled={loading || !inputMessage.trim()}>
+          <Button type="submit" size="icon" disabled={loading || !inputMessage.trim()} aria-label="Send message">
             <Send className="h-4 w-4" />
           </Button>
         </form>

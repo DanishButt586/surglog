@@ -3,38 +3,48 @@
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 
-export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+/**
+ * The single theme toggle for the whole app. The auth pages used to hand-roll
+ * their own copy (reading `theme` rather than `resolvedTheme`, which showed the
+ * wrong icon on first paint) — they now use this.
+ *
+ * The icon slot keeps its 20px box before mount so swapping icons after
+ * hydration never nudges the surrounding row.
+ */
+export function ThemeToggle({
+  className,
+  size = "icon",
+}: {
+  className?: string;
+  size?: ButtonProps["size"];
+}) {
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const isDark = mounted && (resolvedTheme === "dark" || theme === "dark");
-
-  const toggleTheme = () => {
-    setTheme(isDark ? "light" : "dark");
-  };
+  const isDark = mounted && resolvedTheme === "dark";
 
   return (
     <Button
       variant="ghost"
-      size="icon"
-      onClick={toggleTheme}
+      size={size}
+      onClick={() => setTheme(isDark ? "light" : "dark")}
       className={className}
-      aria-label="Toggle Light and Dark Mode"
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       {mounted ? (
         isDark ? (
-          <Sun className="h-5 w-5 text-amber-400 transition-all" />
+          <Sun className="h-5 w-5 text-amber-400" />
         ) : (
-          <Moon className="h-5 w-5 text-slate-600 dark:text-slate-300 transition-all" />
+          <Moon className="h-5 w-5" />
         )
       ) : (
-        <div className="h-5 w-5" />
+        <span className="h-5 w-5" aria-hidden="true" />
       )}
     </Button>
   );

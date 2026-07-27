@@ -12,6 +12,7 @@ import {
   X,
   Loader2,
   Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,16 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function CaseListPage() {
   const [casesList, setCasesList] = useState<SurgicalCase[]>([]);
+  const [categoriesList, setCategoriesList] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters state
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -36,6 +43,7 @@ export default function CaseListPage() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
+      // Fetch cases
       const { data, error } = await supabase
         .from("cases")
         .select("*")
@@ -57,6 +65,18 @@ export default function CaseListPage() {
           notes: item.notes || "",
         }));
         setCasesList(mapped);
+      }
+
+      // Fetch targets/categories
+      const { data: targetsData } = await supabase
+        .from("targets")
+        .select("category")
+        .eq("user_id", user.id);
+
+      if (targetsData && targetsData.length > 0) {
+        setCategoriesList(targetsData.map((t: any) => t.category));
+      } else {
+        setCategoriesList(INITIAL_CATEGORIES.map((c) => c.name));
       }
     }
     setLoading(false);
@@ -103,7 +123,7 @@ export default function CaseListPage() {
     setDeleteTargetId(null);
   };
 
-  // Filter cases logic
+  // Filter cases logic against search, role, category, and date range
   const filteredCases = casesList.filter((c) => {
     const matchesSearch =
       c.procedureName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,7 +133,15 @@ export default function CaseListPage() {
     const matchesRole = roleFilter === "All" || c.role === roleFilter;
     const matchesCategory = categoryFilter === "All" || c.category === categoryFilter;
 
-    return matchesSearch && matchesRole && matchesCategory;
+    let matchesDate = true;
+    if (startDate) {
+      matchesDate = matchesDate && c.date >= startDate;
+    }
+    if (endDate) {
+      matchesDate = matchesDate && c.date <= endDate;
+    }
+
+    return matchesSearch && matchesRole && matchesCategory && matchesDate;
   });
 
   const roleBadges = {
@@ -128,6 +156,8 @@ export default function CaseListPage() {
     High: "warning",
   } as const;
 
+  const hasActiveFilters = searchQuery || roleFilter !== "All" || categoryFilter !== "All" || startDate || endDate;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -137,7 +167,7 @@ export default function CaseListPage() {
             Surgical Case Logbook
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            View, filter, search, and manage all your logged operative cases in Supabase.
+            View, filter, search, and manage all your logged operative cases.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -164,8 +194,8 @@ export default function CaseListPage() {
       <Card>
         <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            {/* Search Input (5 cols) */}
-            <div className="sm:col-span-5 relative">
+            {/* Search Input (4 cols) */}
+            <div className="sm:col-span-4 relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
                 type="text"
@@ -176,30 +206,49 @@ export default function CaseListPage() {
               />
             </div>
 
-            {/* Role Filter (3 cols) */}
-            <div className="sm:col-span-3">
+            {/* Role Filter (2 cols) */}
+            <div className="sm:col-span-2">
               <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
                 <option value="All">All Roles</option>
-                <option value="Performed">Performed (Primary)</option>
+                <option value="Performed">Performed</option>
                 <option value="Assisted">Assisted</option>
                 <option value="Observed">Observed</option>
               </Select>
             </div>
 
-            {/* Category Filter (4 cols) */}
-            <div className="sm:col-span-4">
+            {/* Category Filter (3 cols) */}
+            <div className="sm:col-span-3">
               <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="All">All Procedure Categories</option>
-                {INITIAL_CATEGORIES.map((cat) => (
-                  <option key={cat.id} value={cat.name}>
-                    {cat.name}
+                {categoriesList.map((cat, i) => (
+                  <option key={i} value={cat}>
+                    {cat}
                   </option>
                 ))}
               </Select>
             </div>
+
+            {/* Date Range Start & End (3 cols) */}
+            <div className="sm:col-span-3 flex items-center gap-2">
+              <Input
+                type="date"
+                title="Start Date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs"
+              />
+              <span className="text-slate-400 text-xs">-</span>
+              <Input
+                type="date"
+                title="End Date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
           </div>
 
-          {(searchQuery || roleFilter !== "All" || categoryFilter !== "All") && (
+          {hasActiveFilters && (
             <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
               <span>Showing {filteredCases.length} of {casesList.length} total cases</span>
               <button
@@ -207,6 +256,8 @@ export default function CaseListPage() {
                   setSearchQuery("");
                   setRoleFilter("All");
                   setCategoryFilter("All");
+                  setStartDate("");
+                  setEndDate("");
                 }}
                 className="text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 font-medium cursor-pointer"
               >
@@ -221,9 +272,9 @@ export default function CaseListPage() {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400" />
-              <span>Loading your logged surgical cases from Supabase...</span>
+            <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-teal-600 dark:text-teal-400" />
+              <span>Fetching your logged surgical cases from Supabase...</span>
             </div>
           ) : (
             <table className="w-full text-left border-collapse text-sm">
@@ -306,13 +357,35 @@ export default function CaseListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center text-slate-500 dark:text-slate-400">
-                      <p className="text-base font-semibold">No surgical cases logged yet</p>
-                      <p className="text-xs mt-1 mb-4">Click "Log New Case" or "Load Sample Cases" to populate your logbook</p>
-                      <Button variant="outline" size="sm" onClick={handleSeedSampleCases} className="gap-1.5">
-                        <Sparkles className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        Load Sample Cases
-                      </Button>
+                    <td colSpan={6} className="p-16 text-center text-slate-500 dark:text-slate-400">
+                      <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
+                        <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                          <ClipboardList className="h-6 w-6" />
+                        </div>
+                        <p className="text-base font-bold text-slate-800 dark:text-slate-200">
+                          {hasActiveFilters ? "No cases match your filters" : "No cases logged yet"}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                          {hasActiveFilters
+                            ? "Try clearing or adjusting your search criteria and date range."
+                            : "Add your first surgical procedure entry to begin tracking targets and analytics."}
+                        </p>
+
+                        {!hasActiveFilters && (
+                          <div className="flex items-center gap-3 pt-2">
+                            <Link href="/cases/new">
+                              <Button variant="primary" size="sm">
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Your First Case
+                              </Button>
+                            </Link>
+                            <Button variant="outline" size="sm" onClick={handleSeedSampleCases}>
+                              <Sparkles className="h-4 w-4 mr-1 text-teal-600 dark:text-teal-400" />
+                              Load Sample Cases
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}

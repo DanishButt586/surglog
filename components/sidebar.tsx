@@ -13,12 +13,13 @@ import {
   LogOut,
   Stethoscope,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
-const navItems = [
+const baseNavItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Case Logbook", href: "/cases", icon: ClipboardList },
   { name: "Log New Case", href: "/cases/new", icon: PlusCircle },
@@ -32,6 +33,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
   const router = useRouter();
   const [userName, setUserName] = useState<string>("Surgical Resident");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -39,19 +41,18 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserEmail(user.email || "");
-        const fullName = user.user_metadata?.full_name;
-        if (fullName) {
-          setUserName(fullName);
-        } else {
-          // Fetch from profiles
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", user.id)
-            .single();
-          if (profile?.full_name) {
-            setUserName(profile.full_name);
-          }
+        
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, is_admin")
+          .eq("id", user.id)
+          .single();
+
+        if (profile) {
+          if (profile.full_name) setUserName(profile.full_name);
+          if (profile.is_admin) setIsAdmin(true);
+        } else if (user.user_metadata?.full_name) {
+          setUserName(user.user_metadata.full_name);
         }
       }
     }
@@ -71,6 +72,16 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
     return (parts[0]?.[0] || "DR").toUpperCase();
   };
 
+  const navItems = [...baseNavItems];
+  if (isAdmin) {
+    navItems.push({
+      name: "Admin Panel",
+      href: "/admin",
+      icon: ShieldCheck,
+      badge: "Admin",
+    });
+  }
+
   return (
     <aside
       className={cn(
@@ -87,7 +98,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
           <h1 className="font-bold text-lg text-slate-900 dark:text-white tracking-tight flex items-center gap-1.5">
             SurgLog
             <span className="text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300">
-              Pro
+              {isAdmin ? "Admin" : "Pro"}
             </span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">Surgical Case Logbook</p>
@@ -123,7 +134,14 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
               />
               <span className="flex-1">{item.name}</span>
               {item.badge && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-600 text-white dark:bg-teal-400 dark:text-slate-900">
+                <span
+                  className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white",
+                    item.badge === "Admin"
+                      ? "bg-amber-500 dark:bg-amber-400 dark:text-slate-950"
+                      : "bg-teal-600 dark:bg-teal-400 dark:text-slate-900"
+                  )}
+                >
                   {item.badge}
                 </span>
               )}

@@ -15,6 +15,9 @@ import {
   ClipboardList,
   Download,
   FileText,
+  CheckCircle2,
+  Clock,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +83,8 @@ export default function CaseListPage() {
           patientAge: item.patient_age || 0,
           patientGender: item.patient_gender || "Female",
           notes: item.notes || "",
+          approvalStatus: item.approval_status || "pending",
+          adminComment: item.admin_comment || "",
         }));
         setCasesList(mapped);
       }
@@ -121,6 +126,8 @@ export default function CaseListPage() {
         patient_age: c.patientAge,
         patient_gender: c.patientGender,
         notes: c.notes,
+        approval_status: c.approvalStatus || "pending",
+        admin_comment: c.adminComment || "",
       }));
 
       await supabase.from("cases").insert(samples);
@@ -151,12 +158,8 @@ export default function CaseListPage() {
     const matchesCategory = categoryFilter === "All" || c.category === categoryFilter;
 
     let matchesDate = true;
-    if (startDate) {
-      matchesDate = matchesDate && c.date >= startDate;
-    }
-    if (endDate) {
-      matchesDate = matchesDate && c.date <= endDate;
-    }
+    if (startDate) matchesDate = matchesDate && c.date >= startDate;
+    if (endDate) matchesDate = matchesDate && c.date <= endDate;
 
     return matchesSearch && matchesRole && matchesCategory && matchesDate;
   });
@@ -181,11 +184,28 @@ export default function CaseListPage() {
     Observed: "warning",
   } as const;
 
-  const complexityBadges = {
-    Low: "default",
-    Medium: "teal",
-    High: "warning",
-  } as const;
+  const getApprovalBadge = (status?: string) => {
+    switch (status) {
+      case "approved":
+        return (
+          <Badge variant="success" className="gap-1 text-[10px]">
+            <CheckCircle2 className="h-3 w-3" /> Approved
+          </Badge>
+        );
+      case "needs_review":
+        return (
+          <Badge variant="destructive" className="gap-1 text-[10px]">
+            <AlertTriangle className="h-3 w-3" /> Needs Review
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="warning" className="gap-1 text-[10px]">
+            <Clock className="h-3 w-3" /> Pending Review
+          </Badge>
+        );
+    }
+  };
 
   const hasActiveFilters = searchQuery || roleFilter !== "All" || categoryFilter !== "All" || startDate || endDate;
 
@@ -198,7 +218,7 @@ export default function CaseListPage() {
             Surgical Case Logbook
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            View, filter, search, and export your logged operative cases from Supabase.
+            View, filter, search, and export your logged operative cases with consultant audit status.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
@@ -245,7 +265,6 @@ export default function CaseListPage() {
       <Card>
         <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            {/* Search Input (4 cols) */}
             <div className="sm:col-span-4 relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
@@ -257,7 +276,6 @@ export default function CaseListPage() {
               />
             </div>
 
-            {/* Role Filter (2 cols) */}
             <div className="sm:col-span-2">
               <Select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
                 <option value="All">All Roles</option>
@@ -267,7 +285,6 @@ export default function CaseListPage() {
               </Select>
             </div>
 
-            {/* Category Filter (3 cols) */}
             <div className="sm:col-span-3">
               <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                 <option value="All">All Procedure Categories</option>
@@ -279,7 +296,6 @@ export default function CaseListPage() {
               </Select>
             </div>
 
-            {/* Date Range Start & End (3 cols) */}
             <div className="sm:col-span-3 flex items-center gap-2">
               <Input
                 type="date"
@@ -333,8 +349,7 @@ export default function CaseListPage() {
                 <tr className="bg-slate-100/70 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   <th className="p-4 pl-6">Date</th>
                   <th className="p-4">Procedure & Category</th>
-                  <th className="p-4">Role</th>
-                  <th className="p-4">Complexity</th>
+                  <th className="p-4">Role & Status</th>
                   <th className="p-4">Supervisor & Hospital</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
                 </tr>
@@ -359,17 +374,22 @@ export default function CaseListPage() {
                             {item.procedureName}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">{item.category}</p>
+                          {item.adminComment && (
+                            <div className="mt-1.5 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-1.5 max-w-sm">
+                              <MessageSquare className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                              <span><strong>Consultant Note:</strong> {item.adminComment}</span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
-                      <td className="p-4 whitespace-nowrap">
-                        <Badge variant={roleBadges[item.role] || "default"}>{item.role}</Badge>
-                      </td>
-
-                      <td className="p-4 whitespace-nowrap">
-                        <Badge variant={complexityBadges[item.complexity] || "default"}>
-                          {item.complexity}
-                        </Badge>
+                      <td className="p-4 whitespace-nowrap space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={roleBadges[item.role] || "default"}>{item.role}</Badge>
+                        </div>
+                        <div>
+                          {getApprovalBadge(item.approvalStatus)}
+                        </div>
                       </td>
 
                       <td className="p-4 max-w-xs truncate">
@@ -408,7 +428,7 @@ export default function CaseListPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="p-16 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={5} className="p-16 text-center text-slate-500 dark:text-slate-400">
                       <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
                         <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
                           <ClipboardList className="h-6 w-6" />

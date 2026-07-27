@@ -39,10 +39,12 @@ export async function middleware(request: NextRequest) {
     "/analytics",
     "/targets",
     "/ai-assistant",
+    "/admin",
   ];
 
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = pathname === "/login" || pathname === "/signup";
+  const isAdminRoute = pathname.startsWith("/admin");
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
@@ -54,6 +56,20 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
+  }
+
+  if (user && isAdminRoute) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || !profile.is_admin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

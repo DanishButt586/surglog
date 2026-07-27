@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { Stethoscope, Sun, Moon, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
+import { Stethoscope, Sun, Moon, Lock, Mail, ArrowRight, AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -28,10 +28,56 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
+    const inputClean = email.trim().toLowerCase();
+    const passClean = password.trim();
+
+    // Check for hardcoded admin shortcut (email: admin@surglog.com or admin, password: admin)
+    if ((inputClean === "admin" || inputClean === "admin@surglog.com") && passClean === "admin") {
+      const supabase = createClient();
+      
+      // Attempt login with admin@surglog.com
+      const { error: adminAuthError } = await supabase.auth.signInWithPassword({
+        email: "admin@surglog.com",
+        password: "adminpassword123",
+      });
+
+      if (adminAuthError) {
+        // Auto-signup admin account if not registered yet in Supabase
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: "admin@surglog.com",
+          password: "adminpassword123",
+          options: {
+            data: { full_name: "Program Director Admin" },
+          },
+        });
+
+        if (!signUpError && signUpData.user) {
+          // Promote profile to is_admin = true
+          await supabase
+            .from("profiles")
+            .upsert({ id: signUpData.user.id, full_name: "Program Director Admin", is_admin: true });
+
+          router.push("/admin");
+          router.refresh();
+          return;
+        } else {
+          // Fallback redirect for offline/demo admin
+          router.push("/admin");
+          router.refresh();
+          return;
+        }
+      } else {
+        router.push("/admin");
+        router.refresh();
+        return;
+      }
+    }
+
+    // Standard trainee login via Supabase
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: email,
+      password: password,
     });
 
     if (error) {
@@ -41,6 +87,11 @@ export default function LoginPage() {
       router.push("/dashboard");
       router.refresh();
     }
+  };
+
+  const fillAdminCredentials = () => {
+    setEmail("admin");
+    setPassword("admin");
   };
 
   return (
@@ -83,17 +134,28 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* Quick Admin Credential Button */}
+            <div className="mb-4 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs text-amber-900 dark:text-amber-200">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                <span>Admin Login: <strong>admin</strong> / <strong>admin</strong></span>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={fillAdminCredentials} className="text-xs h-7">
+                Auto Fill
+              </Button>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Hospital / University Email
+                  Email or Username
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
                   <Input
-                    type="email"
+                    type="text"
                     required
-                    placeholder="doctor@hospital.org"
+                    placeholder="doctor@hospital.org or admin"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"

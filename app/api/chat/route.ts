@@ -24,7 +24,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Prepare contents for Gemini SDK
-    // Convert message history to GoogleGenerativeAI contents structure
     const formattedHistory = (messages || []).map((m: { role: string; content: string }) => ({
       role: m.role === "user" ? "user" : "model",
       parts: [{ text: m.content }],
@@ -38,9 +37,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Try models in order of availability: gemini-1.5-flash, gemini-1.5-pro, gemini-2.0-flash
-    const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"];
+    // Try high-performance Flash models in order of priority
+    const modelNames = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+    ];
+
     let responseText = "";
+    let usedModel = "";
 
     for (const modelName of modelNames) {
       try {
@@ -49,7 +55,6 @@ export async function POST(req: NextRequest) {
           systemInstruction: SYSTEM_PROMPT,
         });
 
-        // Use generateContent with complete message history
         const chatContents = formattedHistory.length > 0 
           ? formattedHistory 
           : [{ role: "user", parts: [{ text: caseContextPrompt + "Hello!" }] }];
@@ -59,9 +64,12 @@ export async function POST(req: NextRequest) {
         });
 
         responseText = result.response.text();
-        if (responseText) break;
+        if (responseText) {
+          usedModel = modelName;
+          break;
+        }
       } catch (err: any) {
-        console.warn(`Model ${modelName} attempt error:`, err?.message || err);
+        console.warn(`Model ${modelName} attempt notice:`, err?.message || err);
       }
     }
 
@@ -72,7 +80,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ reply: responseText });
+    return NextResponse.json({ reply: responseText, model: usedModel });
   } catch (error: any) {
     console.error("Gemini Chat API Error:", error);
     return NextResponse.json(

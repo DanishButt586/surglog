@@ -1,36 +1,24 @@
-"use client";
-
 import Link from "next/link";
-import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   Stethoscope,
-  Sun,
-  Moon,
-  CheckCircle2,
+  ClipboardList,
+  Target,
+  Sparkles,
   BarChart3,
-  Bot,
   ShieldCheck,
   ArrowRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function LandingPage() {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
-      {/* Top Header */}
-      <header className="sticky top-0 z-30 h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center shadow-md">
-            <Stethoscope className="h-6 w-6" />
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col transition-colors">
+      {/* Top Header / Navigation */}
+      <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-xl bg-teal-600 dark:bg-teal-500 text-white dark:text-slate-900 flex items-center justify-center shadow-xs">
+            <Stethoscope className="h-5 w-5" />
           </div>
           <span className="font-bold text-xl text-slate-900 dark:text-white tracking-tight">
             SurgLog
@@ -38,105 +26,87 @@ export default function LandingPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-            aria-label="Toggle Dark Mode"
-          >
-            {mounted && theme === "dark" ? (
-              <Sun className="h-5 w-5 text-amber-400" />
-            ) : (
-              <Moon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
-            )}
-          </Button>
+          <ThemeToggle />
           <Link href="/login">
-            <Button variant="outline" size="sm">
-              Login
+            <Button variant="ghost" size="sm">
+              Log In
             </Button>
           </Link>
           <Link href="/signup">
-            <Button variant="primary" size="sm">
-              Sign Up
+            <Button variant="primary" size="sm" className="shadow-xs">
+              Get Started
             </Button>
           </Link>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="py-16 sm:py-24 px-4 sm:px-8 max-w-5xl mx-auto text-center flex-1 flex flex-col justify-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950/80 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-xs font-semibold mb-6 mx-auto">
-          <ShieldCheck className="h-4 w-4" />
-          <span>Designed for Surgical Residents & Medical Trainees</span>
+      <main className="flex-1 max-w-6xl mx-auto px-6 py-16 sm:py-24 flex flex-col items-center text-center space-y-8">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-xs font-medium">
+          <Sparkles className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+          <span>Designed for Surgical Trainees, Residents & Fellows</span>
         </div>
 
-        <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight mb-6">
-          Surgical Case Logging, <br className="hidden sm:inline" />
-          <span className="text-teal-600 dark:text-teal-400">Streamlined & Smart</span>
+        <h1 className="text-4xl sm:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight max-w-4xl">
+          Log operative cases. <br />
+          <span className="text-teal-600 dark:text-teal-400">Track audit targets.</span> Ace surgical exams.
         </h1>
 
-        <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed mb-8">
-          Log operative cases effortlessly, monitor progress against ACGME & RCS case-count targets in real-time, and get AI-assisted surgical study notes when preparing for board exams.
+        <p className="text-lg sm:text-xl text-slate-600 dark:text-slate-300 max-w-2xl font-normal leading-relaxed">
+          The ultimate medical logbook tracker. Effortlessly log procedures, monitor ACGME/Royal College requirements, and get instant AI-assisted study help.
         </p>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/dashboard" className="w-full sm:w-auto">
-            <Button variant="primary" size="lg" className="w-full sm:w-auto px-8 shadow-md">
-              Explore Demo Dashboard
-              <ArrowRight className="h-5 w-5 ml-1" />
+        <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
+          <Link href="/signup">
+            <Button variant="primary" size="lg" className="shadow-md text-base px-8 gap-2">
+              <span>Start Free Logbook</span>
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>
-          <Link href="/signup" className="w-full sm:w-auto">
-            <Button variant="outline" size="lg" className="w-full sm:w-auto px-8">
-              Create Free Account
+          <Link href="/login">
+            <Button variant="outline" size="lg" className="text-base px-8">
+              Sign In to Your Account
             </Button>
           </Link>
         </div>
 
-        {/* Feature Highlights Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 text-left">
-          <Card className="hover:border-teal-500/50 transition-all">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 flex items-center justify-center mb-2">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-              <CardTitle>Case-Count Target Tracker</CardTitle>
-              <CardDescription>
-                Track requirements per surgical procedure category (e.g. Appendectomy 8/10, Cholecystectomy 15/15) with automatic visual status indicators.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+        {/* Feature Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-16 text-left w-full">
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-3">
+            <div className="h-10 w-10 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+              <ClipboardList className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Seamless Case Logging</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Log patient age, procedure category, surgical role (Observed/Assisted/Performed), and supervisor names in seconds.
+            </p>
+          </div>
 
-          <Card className="hover:border-teal-500/50 transition-all">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 flex items-center justify-center mb-2">
-                <BarChart3 className="h-5 w-5" />
-              </div>
-              <CardTitle>Visual Analytics</CardTitle>
-              <CardDescription>
-                Gain insights into your surgical experience with bar charts by category, monthly log trends, and role breakdown (Observed, Assisted, Performed).
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <Target className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Target Requirement Progress</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Set required procedure counts for ACGME or college audits and watch your visual progress bars automatically update.
+            </p>
+          </div>
 
-          <Card className="hover:border-teal-500/50 transition-all">
-            <CardHeader>
-              <div className="h-10 w-10 rounded-lg bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 flex items-center justify-center mb-2">
-                <Bot className="h-5 w-5" />
-              </div>
-              <CardTitle>AI Surgical Study Assistant</CardTitle>
-              <CardDescription>
-                Review anatomical landmarks, surgical steps, suture choices, and complication management with an integrated AI tutor.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs space-y-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">AI Surgical Study Assistant</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Generate instant surgical steps, anatomical landmarks, complications, and board-style exam questions for any procedure.
+            </p>
+          </div>
         </div>
-      </section>
+      </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
-        <p>© 2026 SurgLog. Clinical Surgical Logbook Tracker for Trainees.</p>
+      <footer className="border-t border-slate-200 dark:border-slate-800 py-6 text-center text-xs text-slate-500">
+        <p>© {new Date().getFullYear()} SurgLog — Surgical Case Logbook Tracker. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -13,7 +13,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -25,6 +25,62 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+}
+
+function renderInlineBold(text: string) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-bold text-slate-900 dark:text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+function FormattedMarkdown({ content }: { content: string }) {
+  const lines = content.split("\n");
+
+  return (
+    <div className="space-y-2">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={idx} className="h-1" />;
+
+        if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
+          const headerText = trimmed.replace(/^#+\s*/, "");
+          return (
+            <h4 key={idx} className="font-bold text-base text-slate-900 dark:text-white mt-3 mb-1">
+              {renderInlineBold(headerText)}
+            </h4>
+          );
+        }
+
+        if (trimmed === "***" || trimmed === "---") {
+          return <hr key={idx} className="my-2 border-slate-200 dark:border-slate-700" />;
+        }
+
+        if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+          const bulletText = trimmed.replace(/^[\*\-]\s*/, "");
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2">
+              <span className="text-teal-600 dark:text-teal-400 font-bold">•</span>
+              <span className="flex-1">{renderInlineBold(bulletText)}</span>
+            </div>
+          );
+        }
+
+        return (
+          <p key={idx} className="leading-relaxed">
+            {renderInlineBold(trimmed)}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function AiAssistantPage() {
@@ -208,13 +264,17 @@ export default function AiAssistantPage() {
                 )}
 
                 <div
-                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-sm whitespace-pre-wrap leading-relaxed shadow-xs ${
+                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-4 text-sm leading-relaxed shadow-xs ${
                     isAssistant
                       ? "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100"
                       : "bg-teal-600 text-white dark:bg-teal-500 dark:text-slate-950 font-medium"
                   }`}
                 >
-                  {msg.content}
+                  {isAssistant ? (
+                    <FormattedMarkdown content={msg.content} />
+                  ) : (
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  )}
                 </div>
 
                 {!isAssistant && (
